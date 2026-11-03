@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Next.js
+.next/
+out/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Python (scaffold python flavor)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Misc
+.DS_Store
+.vscode/
+.idea/
+*.log
