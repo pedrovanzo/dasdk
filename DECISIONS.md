@@ -4,11 +4,11 @@ Captured from a /grilling session (2026-10-30/31). Source of truth for the shape
 
 ## Scope
 
-Three packages, one monorepo:
+Three packages, one monorepo. No `packages/` wrapper folder — `sdk/`, `scaffold/`, and `agents/` sit directly under repo root. (A `packages/` middle directory was the initial default layout; dropped once it became clear it was never a deliberate decision, just unexamined monorepo convention, and pnpm workspaces don't require it.)
 
-- **`packages/sdk`** — agent SDK harness. Publishable, browser-based alternative to Google ADK's local Web UI. Ships both an interactive inspector (live chat, tool-call/skill-load/gating event log) and an eval runner (test cases, pass/fail, latency/cost, cross-provider comparison).
-- **`packages/scaffold`** — not a CLI, not a web generator. Static `.md` direction file(s) describing how an agent should behave. An LLM reads the directions plus a spec (session prompt or `.md` from an existing project) and assembles real files into `packages/agents/${NEW_AGENT_NAME}`. Two flavors: Python (ADK-style, modeled on the Alura reference) and TypeScript (Vercel AI SDK style, modeled on a Matt Pocock web-search-agent pattern). Initial scaffold content is intentionally shallow.
-- **`packages/agents/`** — home for every agent, real or demo/toy, one subfolder each (convention: "agents live in `packages/agents/`" — chosen over naming the folder after each agent, which would be easy to forget). First real agent is **Diver** (`packages/agents/diver/`) — sender/origin verification against known-brand sources (see its own [DECISIONS.md](./packages/agents/diver/DECISIONS.md)). Two toy agents join it, one per scaffold flavor: **`web-search-agent`** (TypeScript, Pocock-style) and **`image-reader`** (Python, vision-based text extraction/description). More agents may follow later — not committed to a fixed count or direction.
+- **`sdk`** — agent SDK harness. Publishable, browser-based alternative to Google ADK's local Web UI. Ships both an interactive inspector (live chat, tool-call/skill-load/gating event log) and an eval runner (test cases, pass/fail, latency/cost, cross-provider comparison).
+- **`scaffold`** — not a CLI, not a web generator. Static `.md` direction file(s) describing how an agent should behave. An LLM reads the directions plus a spec (session prompt or `.md` from an existing project) and assembles real files into `agents/${NEW_AGENT_NAME}`. Two flavors: Python (ADK-style, modeled on the Alura reference) and TypeScript (Vercel AI SDK style, modeled on a Matt Pocock web-search-agent pattern). Initial scaffold content is intentionally shallow.
+- **`agents/`** — home for every agent, real or demo/toy, one subfolder each (convention: "agents live in `agents/`" — chosen over naming the folder after each agent, which would be easy to forget). First real agent is **Diver** (`agents/diver/`) — sender/origin verification against known-brand sources (see its own [DECISIONS.md](./agents/diver/DECISIONS.md)). Two toy agents join it, one per scaffold flavor: **`web-search-agent`** (TypeScript, Pocock-style) and **`image-reader`** (Python, vision-based text extraction/description). More agents may follow later — not committed to a fixed count or direction.
 
 ## Deployment model
 
@@ -34,9 +34,9 @@ Three packages, one monorepo:
 
 ## Reference material
 
-- `misc-work/alura-google` (sibling of this folder, **not** inside it, **not** part of this repo) — the Alura "Imersão Dev" course repo on Google ADK + Antigravity CLI. Conceptual reference only (ADK skills system, progressive disclosure, `EnvironmentToolset`, gating logic), never reused as code. Contains a live API key in its own `.env` (gitignored there) — never copy it anywhere near `packages/`. Moved out of `dasdk` specifically so it can't end up in the public repo by accident.
+- `misc-work/alura-google` (sibling of this folder, **not** inside it, **not** part of this repo) — the Alura "Imersão Dev" course repo on Google ADK + Antigravity CLI. Conceptual reference only (ADK skills system, progressive disclosure, `EnvironmentToolset`, gating logic), never reused as code. Contains a live API key in its own `.env` (gitignored there) — never copy it anywhere near this repo. Moved out of `dasdk` specifically so it can't end up in the public repo by accident.
 - Matt Pocock web-search-agent short (TypeScript/Vercel AI SDK pattern): https://www.youtube.com/shorts/uNkv2t6c40o — exact source snippet not published; closest found equivalent is Vercel AI SDK's own Tavily cookbook (`stopWhen: isStepCount(n)` replacing the older `maxSteps`).
-- Docs page (inside `packages/sdk`) credits the Alura/Google immersion and briefly covers both the all-Google stack (Antigravity CLI, ADK, Vertex/AI Studio, Cloud Shell/Cloud Run) and this project's mixed stack (Next.js, Vercel, Vercel AI SDK, git/GitHub, multi-provider keys) — comprehensive but not a deep comparison.
+- Docs page (inside `sdk`) credits the Alura/Google immersion and briefly covers both the all-Google stack (Antigravity CLI, ADK, Vertex/AI Studio, Cloud Shell/Cloud Run) and this project's mixed stack (Next.js, Vercel, Vercel AI SDK, git/GitHub, multi-provider keys) — comprehensive but not a deep comparison.
 
 ## Scaffold `.md` direction file format
 
@@ -48,8 +48,8 @@ Adopted **Matt Pocock's AGENTS.md style** (minimal, progressive-disclosure), exp
 
 ## Eval runner
 
-- **Grading is per-agent, not centralized.** Each agent in `packages/agents/*` owns its own grader: Diver's structured traffic-light output can be graded by exact match (no judge LLM needed, cheaper and deterministic); free-text agents (`web-search-agent`, `image-reader`) use substring checks or model-as-judge as appropriate to their output shape. Rejected a single global grading strategy (exact-match-only is unusable for free text; model-as-judge-only adds unnecessary non-determinism/cost to Diver's already-deterministic output).
-- **Test cases + graders are co-located with each agent** (e.g. `packages/agents/diver/evals/`), not centralized in `packages/sdk`. The harness (`sdk`) is a generic runner that discovers and executes whatever `evals/` folder it finds per agent — adding a new agent later never requires touching `sdk`.
+- **Grading is per-agent, not centralized.** Each agent in `agents/*` owns its own grader: Diver's structured traffic-light output can be graded by exact match (no judge LLM needed, cheaper and deterministic); free-text agents (`web-search-agent`, `image-reader`) use substring checks or model-as-judge as appropriate to their output shape. Rejected a single global grading strategy (exact-match-only is unusable for free text; model-as-judge-only adds unnecessary non-determinism/cost to Diver's already-deterministic output).
+- **Test cases + graders are co-located with each agent** (e.g. `agents/diver/evals/`), not centralized in `sdk`. The harness (`sdk`) is a generic runner that discovers and executes whatever `evals/` folder it finds per agent — adding a new agent later never requires touching `sdk`.
 
 ## Docs page (`/docs`) outline
 

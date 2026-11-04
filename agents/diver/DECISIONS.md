@@ -64,4 +64,4 @@ Checks #2-5 above (SPF/DKIM/DMARC, reply-to, allowlist, link-resolve) need **no 
 
 ## Folder structure
 
-`packages/agents/diver/` — all agents (real or demo/toy) live under `packages/agents/`, one subfolder per agent, so the convention stays memorable ("agents live in `packages/agents/`") rather than relying on remembering which top-level folder name belongs to which agent.
+`agents/diver/` — all agents (real or demo/toy) live under `agents/`, one subfolder per agent, so the convention stays memorable ("agents live in `agents/`") rather than relying on remembering which top-level folder name belongs to which agent.
