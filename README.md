@@ -8,7 +8,7 @@ Goal: publish as showcase (GitHub Pages / Vercel / similar).
 
 - `packages/sdk/` — agent SDK harness: UI to run/inspect/score agent performance, publishable alternative to Google's ADK Web.
 - `packages/scaffold/` — agent scaffold tool: generator for new agent projects, conceptually like alura's `agents-cli`.
-- `packages/agents/` — home for every agent (real or demo). First real agent: **Diver** (`packages/agents/diver/`), a sender/origin verification tool built with `sdk`/`scaffold`.
+- `packages/agents/` — home for every agent (real or demo). First real agent: **Diver** (`packages/agents/diver/`), a sender/origin verification tool built with `sdk`/`scaffold`. Toy agents: `web-search-agent` (TypeScript) and `image-reader` (Python).
 
 Key design constraint: self-provided API key. User pastes their own key at runtime; app never stores/registers a key. Shapes stack choices for all three packages (must support client-supplied credentials, no server-side secret storage).
 
