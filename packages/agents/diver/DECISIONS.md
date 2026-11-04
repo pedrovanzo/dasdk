@@ -1,6 +1,6 @@
 # Diver — decisions log
 
-Captured from a /grilling session (2026-11-03/04), closing definition gap #1 ("first agent's goal") from `dasdk/DECISOES.md`. Source of truth for Diver's shape; update as decisions change.
+Captured from a /grilling session (2026-11-03/04), closing definition gap #1 ("first agent's goal") from `dasdk/DECISIONS.md`. Source of truth for Diver's shape; update as decisions change.
 
 ## What Diver is
 
