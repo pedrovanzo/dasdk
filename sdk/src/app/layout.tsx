@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
+import { ApiKeyDialog } from "@/components/api-key-dialog";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -36,6 +37,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <Link href="/docs" className="text-muted-foreground hover:text-foreground">
               Docs
             </Link>
+            <div className="ml-auto">
+              <ApiKeyDialog />
+            </div>
           </nav>
         </header>
         <main className="flex flex-1 flex-col">{children}</main>
