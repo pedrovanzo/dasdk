@@ -7,8 +7,8 @@ Captured from a /grilling session (2026-10-30/31). Source of truth for the shape
 Three packages, one monorepo:
 
 - **`packages/sdk`** — agent SDK harness. Publishable, browser-based alternative to Google ADK's local Web UI. Ships both an interactive inspector (live chat, tool-call/skill-load/gating event log) and an eval runner (test cases, pass/fail, latency/cost, cross-provider comparison).
-- **`packages/scaffold`** — not a CLI, not a web generator. Static `.md` direction file(s) describing how an agent should behave. An LLM reads the directions plus a spec (session prompt or `.md` from an existing project) and assembles real files into `packages/agent/${NEW_AGENT_NAME}`. Two flavors: Python (ADK-style, modeled on the Alura reference) and TypeScript (Vercel AI SDK style, modeled on a Matt Pocock web-search-agent pattern). Initial scaffold content is intentionally shallow.
-- **`packages/agent`** — the first real, goal-driven agent (goal TBD), plus a couple of trivial example agents whose only job is to populate the deployed demo. This may grow into more agents later — not committed to a fixed count or direction.
+- **`packages/scaffold`** — not a CLI, not a web generator. Static `.md` direction file(s) describing how an agent should behave. An LLM reads the directions plus a spec (session prompt or `.md` from an existing project) and assembles real files into `packages/agents/${NEW_AGENT_NAME}`. Two flavors: Python (ADK-style, modeled on the Alura reference) and TypeScript (Vercel AI SDK style, modeled on a Matt Pocock web-search-agent pattern). Initial scaffold content is intentionally shallow.
+- **`packages/agents/`** — home for every agent, real or demo/toy, one subfolder each (convention: "agents live in `packages/agents/`" — chosen over naming the folder after each agent, which would be easy to forget). First real agent is **Diver** (`packages/agents/diver/`) — sender/origin verification against known-brand sources (see its own [DECISOES.md](./packages/agents/diver/DECISOES.md)). A couple of trivial example agents (e.g. a Pocock-style web-search-agent) will join it purely to populate the deployed demo. More agents may follow later — not committed to a fixed count or direction.
 
 ## Deployment model
 
@@ -37,6 +37,7 @@ Three packages, one monorepo:
 
 ## Open / deferred
 
-- Concrete goal/domain for the first real agent in `packages/agent` — not yet chosen.
+- ~~Concrete goal/domain for the first real agent~~ — resolved: **Diver**, see `packages/agents/diver/DECISOES.md`.
 - Harness UI/UX — flagged as needing special design attention (lots of complex concepts, needs to stay simple/friendly); specifics deferred to build time.
 - Whether more demo agents get added later, and in what shape — intentionally left open, cheap to change.
+- Provider list (exact priority order), scaffold `.md` file structure, eval runner test-case format, docs page section outline — remaining definition gaps, several unblocked now that Diver's shape is known.
