@@ -13,8 +13,12 @@ export default function Home() {
           in your browser with your own model key. No server-held secrets, ever.
         </p>
         <div className="flex gap-3">
-          <Button render={<Link href="/agents">Try the agents</Link>} />
-          <Button variant="outline" render={<Link href="/docs">Read the docs</Link>} />
+          <Button nativeButton={false} render={<Link href="/agents">Try the agents</Link>} />
+          <Button
+            nativeButton={false}
+            variant="outline"
+            render={<Link href="/docs">Read the docs</Link>}
+          />
         </div>
       </div>
 

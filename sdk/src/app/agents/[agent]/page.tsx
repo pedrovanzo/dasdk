@@ -30,6 +30,7 @@ export default async function AgentPage({
           <TabsTrigger value="inspector">Inspector</TabsTrigger>
           <TabsTrigger
             value="evals"
+            nativeButton={false}
             render={<Link href={`/agents/${agent.slug}/evals`}>Evals</Link>}
           />
         </TabsList>
