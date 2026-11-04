@@ -1,49 +1,17 @@
 import type { Metadata } from "next";
-import {
-  Geist,
-  Geist_Mono,
-  Inter,
-  IBM_Plex_Sans,
-  Manrope,
-  Space_Grotesk,
-  Figtree,
-  Outfit,
-  DM_Sans,
-  Sora,
-  Lexend,
-} from "next/font/google";
-import { FontLab } from "@/components/font-lab";
+import { Geist, Geist_Mono } from "next/font/google";
+import Link from "next/link";
 import "./globals.css";
 
-const geistSans = Geist({ variable: "--font-geist", subsets: ["latin"] });
-const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
-const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
-const plex = IBM_Plex_Sans({
-  variable: "--font-plex",
+const geistSans = Geist({
+  variable: "--font-geist-sans",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
 });
-const manrope = Manrope({ variable: "--font-manrope", subsets: ["latin"] });
-const spaceGrotesk = Space_Grotesk({ variable: "--font-space-grotesk", subsets: ["latin"] });
-const figtree = Figtree({ variable: "--font-figtree", subsets: ["latin"] });
-const outfit = Outfit({ variable: "--font-outfit", subsets: ["latin"] });
-const dmSans = DM_Sans({ variable: "--font-dm-sans", subsets: ["latin"] });
-const sora = Sora({ variable: "--font-sora", subsets: ["latin"] });
-const lexend = Lexend({ variable: "--font-lexend", subsets: ["latin"] });
 
-const fontVariables = [
-  geistSans.variable,
-  geistMono.variable,
-  inter.variable,
-  plex.variable,
-  manrope.variable,
-  spaceGrotesk.variable,
-  figtree.variable,
-  outfit.variable,
-  dmSans.variable,
-  sora.variable,
-  lexend.variable,
-].join(" ");
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
 
 export const metadata: Metadata = {
   title: "dasdk",
@@ -52,9 +20,25 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${fontVariables} h-full antialiased`}>
+    <html
+      lang="en"
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+    >
       <body className="min-h-full flex flex-col">
-        <FontLab>{children}</FontLab>
+        <header className="border-b">
+          <nav className="mx-auto flex max-w-5xl items-center gap-6 px-6 py-4 text-sm">
+            <Link href="/" className="font-semibold">
+              dasdk
+            </Link>
+            <Link href="/agents" className="text-muted-foreground hover:text-foreground">
+              Agents
+            </Link>
+            <Link href="/docs" className="text-muted-foreground hover:text-foreground">
+              Docs
+            </Link>
+          </nav>
+        </header>
+        <main className="flex flex-1 flex-col">{children}</main>
       </body>
     </html>
   );
