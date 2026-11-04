@@ -5,6 +5,8 @@ export function generateStaticParams() {
   return agents.map((agent) => ({ agent: agent.slug }));
 }
 
+export const instant = false;
+
 export default async function AgentEvalsPage({
   params,
 }: {

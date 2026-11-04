@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useApiKey } from "@/lib/use-api-key";
 import { DEFAULT_MODELS } from "@/lib/providers";
 
@@ -78,26 +79,73 @@ export function DiverInspector() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <p className="text-sm text-muted-foreground">
-        Paste the raw email source (headers + body — e.g. Gmail&apos;s &quot;Show original&quot;).
-        Checks run without a key; connect a provider key above for a plain-language narration too.
-      </p>
-      <Textarea
-        value={rawEmail}
-        onChange={(e) => setRawEmail(e.target.value)}
-        placeholder="Paste raw email source here..."
-        rows={10}
-        className="font-mono text-xs"
-      />
-      <div className="flex gap-2">
-        <Button nativeButton onClick={handleRun} disabled={loading || !rawEmail.trim()}>
-          {loading ? "Running..." : "Run checklist"}
-        </Button>
-        <Button nativeButton variant="outline" onClick={() => setRawEmail(SAMPLE_EMAIL)}>
-          Load a spoofed sample
-        </Button>
-      </div>
+    <div className="flex flex-col gap-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">What Diver does</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-1 text-sm text-muted-foreground">
+          <p>
+            You paste the <strong className="text-foreground">full raw source</strong> of a
+            suspicious email — not just the message text. Diver checks it against SPF/DKIM/DMARC
+            results, known-brand domains, and link-redirect targets, then gives you a
+            green/yellow/red verdict with evidence for each check.
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Step 1 — Get the raw email source</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2 text-sm text-muted-foreground">
+          <p>
+            This is a &quot;view source&quot; / &quot;show original&quot; export — every major webmail client has
+            one. It includes the hidden technical headers, not just what you see on screen.
+          </p>
+          <ul className="list-disc space-y-1 pl-5">
+            <li>
+              <strong className="text-foreground">Gmail:</strong> open the email → click the ⋮
+              menu (top right of the message) → <strong className="text-foreground">Show original</strong> → copy everything on that page.
+            </li>
+            <li>
+              <strong className="text-foreground">Outlook:</strong> open the email → <strong className="text-foreground">...</strong> → <strong className="text-foreground">View message details</strong> (or File → Properties → Internet headers).
+            </li>
+            <li>
+              <strong className="text-foreground">Apple Mail:</strong> open the email → View menu
+              → Message → <strong className="text-foreground">All Headers</strong>.
+            </li>
+          </ul>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Step 2 — Paste it below and run the checklist</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <Textarea
+            value={rawEmail}
+            onChange={(e) => setRawEmail(e.target.value)}
+            placeholder="Paste the full raw email source here (headers + body)..."
+            rows={10}
+            className="font-mono text-xs"
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button nativeButton onClick={handleRun} disabled={loading || !rawEmail.trim()}>
+              {loading ? "Running..." : "Run checklist"}
+            </Button>
+            <Button nativeButton variant="outline" onClick={() => setRawEmail(SAMPLE_EMAIL)}>
+              Or try a spoofed sample instead
+            </Button>
+            {!credential && (
+              <span className="text-xs text-muted-foreground">
+                Checks run without a key. Connect one above for a plain-language summary too.
+              </span>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
@@ -121,11 +169,6 @@ export function DiverInspector() {
 
           {result.narration && (
             <div className="rounded-md border bg-muted/30 p-3 text-sm">{result.narration}</div>
-          )}
-          {!result.narration && !credential && (
-            <p className="text-xs text-muted-foreground">
-              Connect a provider key for a plain-language narration of these results.
-            </p>
           )}
         </div>
       )}

@@ -10,6 +10,10 @@ export function generateStaticParams() {
   return agents.map((agent) => ({ agent: agent.slug }));
 }
 
+// All params are statically generated above; this route never needs a
+// blocking runtime lookup, so opt out of instant-navigation validation.
+export const instant = false;
+
 export default async function AgentPage({
   params,
 }: {
