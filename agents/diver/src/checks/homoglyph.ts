@@ -1,5 +1,5 @@
 import brands from "../data/brands.json" with { type: "json" };
-import type { CheckResult } from "../types.js";
+import type { CheckResult } from "../types";
 
 /** Visually-confusable characters folded to their most common Latin look-alike. */
 const CONFUSABLES: Record<string, string> = {

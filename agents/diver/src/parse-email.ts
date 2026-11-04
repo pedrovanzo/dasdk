@@ -1,4 +1,4 @@
-import type { ParsedEmail } from "./types.js";
+import type { ParsedEmail } from "./types";
 
 /**
  * Parses raw email source (RFC 5322 headers + body) as pasted from

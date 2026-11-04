@@ -35,3 +35,10 @@ export const PROVIDERS: ProviderDefinition[] = [
 export function getProvider(id: ProviderId) {
   return PROVIDERS.find((provider) => provider.id === id);
 }
+
+/** Small, cheap default per provider — no model picker UI yet. */
+export const DEFAULT_MODELS: Record<ProviderId, string> = {
+  google: "gemini-2.0-flash",
+  anthropic: "claude-haiku-4-5-20251001",
+  openai: "gpt-4.1-mini",
+};

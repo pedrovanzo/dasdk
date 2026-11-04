@@ -1,5 +1,5 @@
 import { lookup } from "node:dns/promises";
-import type { CheckResult } from "../types.js";
+import type { CheckResult } from "../types";
 
 const MAX_HOPS = 3;
 const MAX_LINKS_CHECKED = 5;
@@ -90,7 +90,7 @@ type ExtractedLink = { href: string; anchorText: string | null };
 
 export function extractLinks(body: string): ExtractedLink[] {
   const links: ExtractedLink[] = [];
-  const anchorRe = /<a\s+[^>]*href=["']([^"']+)["'][^>]*>(.*?)<\/a>/gis;
+  const anchorRe = /<a\s+[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
   let match: RegExpExecArray | null;
   while ((match = anchorRe.exec(body)) !== null) {
     links.push({ href: match[1], anchorText: match[2].replace(/<[^>]+>/g, "").trim() });

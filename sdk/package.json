@@ -16,6 +16,7 @@
     "ai": "^7.0.162",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.5.2",
+    "diver": "workspace:*",
     "lucide-react": "^1.68.0",
     "next": "16.4.5",
     "react": "19.3.0",

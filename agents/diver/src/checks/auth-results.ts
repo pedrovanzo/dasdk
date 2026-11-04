@@ -1,4 +1,4 @@
-import type { CheckResult, CheckStatus } from "../types.js";
+import type { CheckResult, CheckStatus } from "../types";
 
 type Mechanism = "spf" | "dkim" | "dmarc";
 

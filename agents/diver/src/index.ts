@@ -1,10 +1,10 @@
-import { parseRawEmail, getHeader, getAllHeaders, extractEmailAddress, extractDomain } from "./parse-email.js";
-import { checkHomoglyph } from "./checks/homoglyph.js";
-import { checkAuthResults } from "./checks/auth-results.js";
-import { checkReplyTo } from "./checks/reply-to.js";
-import { checkBrandAllowlist, type BrandLookup } from "./checks/brand-allowlist.js";
-import { checkLinkMismatch } from "./checks/link-redirect.js";
-import type { DiverResult, Verdict, CheckStatus, CheckResult } from "./types.js";
+import { parseRawEmail, getHeader, getAllHeaders, extractEmailAddress, extractDomain } from "./parse-email";
+import { checkHomoglyph } from "./checks/homoglyph";
+import { checkAuthResults } from "./checks/auth-results";
+import { checkReplyTo } from "./checks/reply-to";
+import { checkBrandAllowlist, type BrandLookup } from "./checks/brand-allowlist";
+import { checkLinkMismatch } from "./checks/link-redirect";
+import type { DiverResult, Verdict, CheckStatus, CheckResult } from "./types";
 
 const STATUS_SEVERITY: Record<CheckStatus, number> = { fail: 3, warn: 2, unknown: 1, pass: 0 };
 
@@ -46,7 +46,7 @@ export async function runDiverChecklist(
   return { verdict: computeVerdict(checks), checks };
 }
 
-export * from "./types.js";
-export { parseRawEmail, extractEmailAddress, extractDomain } from "./parse-email.js";
-export { SEARCH_CAPABLE_PROVIDERS } from "./checks/brand-allowlist.js";
-export type { BrandLookup } from "./checks/brand-allowlist.js";
+export * from "./types";
+export { parseRawEmail, extractEmailAddress, extractDomain } from "./parse-email";
+export { SEARCH_CAPABLE_PROVIDERS } from "./checks/brand-allowlist";
+export type { BrandLookup } from "./checks/brand-allowlist";

@@ -1,5 +1,5 @@
 import brands from "../data/brands.json" with { type: "json" };
-import type { CheckResult } from "../types.js";
+import type { CheckResult } from "../types";
 
 export type BrandLookupResult = { domain: string } | null;
 export type BrandLookup = (claimedBrandName: string) => Promise<BrandLookupResult>;

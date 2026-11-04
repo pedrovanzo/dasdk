@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { DiverInspector } from "@/components/diver-inspector";
 import { agents, getAgent } from "@/lib/agents";
 
 export function generateStaticParams() {
@@ -35,12 +36,17 @@ export default async function AgentPage({
           />
         </TabsList>
         <TabsContent value="inspector" className="flex flex-col gap-4">
-          <p className="text-sm text-muted-foreground">
-            Paste input below. No API key configured yet — key entry and the actual model call
-            come next.
-          </p>
-          <Textarea placeholder="Paste input here..." rows={10} />
-          <Button disabled>Run (not wired up yet)</Button>
+          {agent.slug === "diver" ? (
+            <DiverInspector />
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">
+                This agent isn&apos;t wired up yet.
+              </p>
+              <Textarea placeholder="Paste input here..." rows={10} disabled />
+              <Button disabled>Run (not wired up yet)</Button>
+            </>
+          )}
         </TabsContent>
       </Tabs>
     </div>

@@ -1,4 +1,4 @@
-import type { CheckResult } from "../types.js";
+import type { CheckResult } from "../types";
 
 export function checkReplyTo(fromDomain: string | null, replyToDomain: string | null): CheckResult {
   if (!replyToDomain) {
