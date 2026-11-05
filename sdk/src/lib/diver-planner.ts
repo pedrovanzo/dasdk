@@ -46,6 +46,27 @@ Only include a check in checksToRun if the fields you extracted actually support
 auth-results if you found no authentication headers). Set any field you can't determine to null. Keep \
 "reasoning" to one short sentence explaining your choice of checks.`;
 
+// The provider path enforces this shape programmatically via generateObject's schema — the CLI path has
+// no such enforcement, it's plain text prompting, so the exact shape has to be spelled out literally or
+// the model invents its own (observed: it flattened fields to the top level instead of nesting them
+// under "extracted").
+const CLI_JSON_SHAPE = `Respond with ONLY a JSON object matching exactly this shape — these exact keys, \
+nothing added or renamed:
+
+{
+  "extracted": {
+    "senderDomain": string or null,
+    "displayName": string or null,
+    "replyToDomain": string or null,
+    "authResultsHeaders": array of strings (empty if none),
+    "body": string or null
+  },
+  "checksToRun": array of strings, only from ${JSON.stringify(CHECK_IDS)},
+  "reasoning": string
+}
+
+No markdown fences, no extra commentary, no other top-level keys.`;
+
 function buildPlannerPrompt(input: DiverInput): string {
   if (input.kind === "image") {
     return "The attached image shows a message, email, or webpage to check. Extract whatever sender/domain/link information is visible.";
@@ -66,10 +87,7 @@ export async function runPlanner(input: DiverInput, backend: Backend): Promise<P
     if (input.kind === "image") {
       throw new Error("The Claude Code CLI backend doesn't support image input yet — connect a provider key instead.");
     }
-    const text = await callClaudeCli(
-      buildPlannerPrompt(input),
-      `${PLANNER_SYSTEM}\n\nRespond with ONLY the JSON object — no markdown fences, no extra commentary.`
-    );
+    const text = await callClaudeCli(buildPlannerPrompt(input), `${PLANNER_SYSTEM}\n\n${CLI_JSON_SHAPE}`);
     const jsonText = extractJsonFromText(text);
     let parsed: unknown;
     try {

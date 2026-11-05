@@ -30,10 +30,19 @@ export async function isClaudeCliInstalled(): Promise<boolean> {
 export async function callClaudeCli(prompt: string, system?: string): Promise<string> {
   const args = ["-p", prompt];
   if (system) args.push("--system-prompt", system);
-  const { stdout } = await execFileAsync("claude", args, {
+
+  // execFile always opens a stdin pipe to the child but never closes it, so
+  // `claude` sits waiting for input that will never arrive (it logs a "no
+  // stdin data received" warning, then still hangs past that). Close our end
+  // immediately so the child sees EOF right away instead of idling until the
+  // timeout kills it.
+  const execPromise = execFileAsync("claude", args, {
     timeout: 60_000,
     maxBuffer: 10 * 1024 * 1024,
   });
+  execPromise.child.stdin?.end();
+
+  const { stdout } = await execPromise;
   return stdout.trim();
 }
 
