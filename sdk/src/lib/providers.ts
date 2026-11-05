@@ -38,7 +38,7 @@ export function getProvider(id: ProviderId) {
 
 /** Small, cheap default per provider — no model picker UI yet. */
 export const DEFAULT_MODELS: Record<ProviderId, string> = {
-  google: "gemini-2.0-flash",
+  google: "gemini-3.8-flash",
   anthropic: "claude-haiku-4-5-20251001",
   openai: "gpt-4.1-mini",
 };

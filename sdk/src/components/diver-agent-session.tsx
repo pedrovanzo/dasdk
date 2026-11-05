@@ -4,7 +4,8 @@ import { useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useApiKey } from "@/lib/use-api-key";
 import { DEFAULT_MODELS } from "@/lib/providers";
 import { VerdictBanner, CheckResultsList, Narration, type Verdict, type CheckResult } from "@/components/diver-shared";
@@ -85,23 +86,25 @@ export function DiverAgentSession() {
     <div className="flex flex-col gap-6">
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">What this does</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-1 text-sm text-muted-foreground">
-          <p>
-            A planning step looks at whatever you give it — a bare email address, a URL, full email
-            headers, or a screenshot — and decides which checks actually apply, then those checks run
-            deterministically exactly as in Quick check. Needs a connected model to do the planning
-            and narration; the checks themselves are still never overridden by the model.
-          </p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Input</CardTitle>
+          <CardTitle className="text-base">Agent session</CardTitle>
+          <CardDescription>
+            Give Diver a bare address, a URL, short text, or a screenshot — it decides which checks
+            apply, then runs them the same deterministic way as Quick check.
+          </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
+          <Collapsible>
+            <CollapsibleTrigger className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground">
+              How is this different from Quick check?
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-2 text-sm text-muted-foreground">
+              A planning step reads your input first and picks only the checks that have enough data
+              to run — e.g. a bare address skips the header-based checks entirely. That plan is shown
+              below before the results. Needs a connected model (for planning and the final summary);
+              the checks themselves are still deterministic and never overridden.
+            </CollapsibleContent>
+          </Collapsible>
+
           <div className="flex gap-2">
             <Button
               nativeButton
@@ -126,7 +129,7 @@ export function DiverAgentSession() {
               value={text}
               onChange={(e) => setText(e.target.value)}
               placeholder="Paste an email address, a URL, or full raw email source..."
-              rows={8}
+              rows={6}
               className="font-mono text-xs"
             />
           ) : (

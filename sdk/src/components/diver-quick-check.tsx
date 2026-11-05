@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useApiKey } from "@/lib/use-api-key";
 import { DEFAULT_MODELS } from "@/lib/providers";
 import { VerdictBanner, CheckResultsList, Narration, SAMPLE_EMAIL, type Verdict, type CheckResult } from "@/components/diver-shared";
@@ -53,47 +54,39 @@ export function DiverQuickCheck() {
     <div className="flex flex-col gap-6">
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">What this does</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-1 text-sm text-muted-foreground">
-          <p>
-            You paste the <strong className="text-foreground">full raw source</strong> of a
-            suspicious email — not just the message text. Every one of the five checks always runs,
-            deterministically, no model involved unless you want a plain-language summary too.
-          </p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Step 1 — Get the raw email source</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-2 text-sm text-muted-foreground">
-          <p>
-            This is a &quot;view source&quot; / &quot;show original&quot; export — every major webmail client has
-            one. It includes the hidden technical headers, not just what you see on screen.
-          </p>
-          <ul className="list-disc space-y-1 pl-5">
-            <li>
-              <strong className="text-foreground">Gmail:</strong> open the email → click the ⋮
-              menu (top right of the message) → <strong className="text-foreground">Show original</strong> → copy everything on that page.
-            </li>
-            <li>
-              <strong className="text-foreground">Outlook:</strong> open the email → <strong className="text-foreground">...</strong> → <strong className="text-foreground">View message details</strong> (or File → Properties → Internet headers).
-            </li>
-            <li>
-              <strong className="text-foreground">Apple Mail:</strong> open the email → View menu
-              → Message → <strong className="text-foreground">All Headers</strong>.
-            </li>
-          </ul>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Step 2 — Paste it below and run the checklist</CardTitle>
+          <CardTitle className="text-base">Quick check</CardTitle>
+          <CardDescription>
+            Paste the full raw source of a suspicious email. Five deterministic checks run
+            immediately, no key needed — connect one above for a plain-language summary too.
+          </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
+          <Collapsible>
+            <CollapsibleTrigger className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground">
+              How do I get the raw email source?
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-2 flex flex-col gap-2 text-sm text-muted-foreground">
+              <p>
+                This is a &quot;view source&quot; / &quot;show original&quot; export, not just the
+                message text — it includes hidden technical headers.
+              </p>
+              <ul className="list-disc space-y-1 pl-5">
+                <li>
+                  <strong className="text-foreground">Gmail:</strong> open the email → ⋮ menu →{" "}
+                  <strong className="text-foreground">Show original</strong> → copy everything.
+                </li>
+                <li>
+                  <strong className="text-foreground">Outlook:</strong> open the email → <strong className="text-foreground">...</strong> →{" "}
+                  <strong className="text-foreground">View message details</strong>.
+                </li>
+                <li>
+                  <strong className="text-foreground">Apple Mail:</strong> View menu → Message →{" "}
+                  <strong className="text-foreground">All Headers</strong>.
+                </li>
+              </ul>
+            </CollapsibleContent>
+          </Collapsible>
+
           <Textarea
             value={rawEmail}
             onChange={(e) => setRawEmail(e.target.value)}
@@ -106,13 +99,8 @@ export function DiverQuickCheck() {
               {loading ? "Running..." : "Run checklist"}
             </Button>
             <Button nativeButton variant="outline" onClick={() => setRawEmail(SAMPLE_EMAIL)}>
-              Or try a spoofed sample instead
+              Try a spoofed sample
             </Button>
-            {!credential && (
-              <span className="text-xs text-muted-foreground">
-                Checks run without a key. Connect one above for a plain-language summary too.
-              </span>
-            )}
           </div>
         </CardContent>
       </Card>
