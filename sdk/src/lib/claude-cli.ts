@@ -46,8 +46,36 @@ export async function callClaudeCli(prompt: string, system?: string): Promise<st
   return stdout.trim();
 }
 
-/** Strips a ```json ... ``` fence if the model wrapped its JSON output in one. */
-export function extractJsonFromText(text: string): string {
+/**
+ * Finds a JSON object inside free-form text — this backend has no structured-output
+ * enforcement, so the model may prepend/append prose around (or instead of) the JSON.
+ * Prefers a ```json fence if present, otherwise scans for the first balanced {...}
+ * object anywhere in the text. Returns null if nothing that looks like an object is found.
+ */
+export function extractJsonFromText(text: string): string | null {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  return fenced ? fenced[1].trim() : text.trim();
+  if (fenced) return fenced[1].trim();
+
+  const start = text.indexOf("{");
+  if (start === -1) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  return null;
 }

@@ -89,6 +89,13 @@ export async function runPlanner(input: DiverInput, backend: Backend): Promise<P
     }
     const text = await callClaudeCli(buildPlannerPrompt(input), `${PLANNER_SYSTEM}\n\n${CLI_JSON_SHAPE}`);
     const jsonText = extractJsonFromText(text);
+    if (jsonText === null) {
+      throw new Error(
+        "The local Claude Code session responded with free-form text instead of the expected JSON " +
+          "(this can happen on accounts with organization-level policies that affect how Claude Code " +
+          `behaves, which no prompt here can override). Raw response: ${text.slice(0, 300)}`
+      );
+    }
     let parsed: unknown;
     try {
       parsed = JSON.parse(jsonText);
