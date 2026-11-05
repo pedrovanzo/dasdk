@@ -1,14 +1,38 @@
 import type { ParsedEmail } from "./types";
 
 /**
+ * Decodes quoted-printable text byte-by-byte through a Buffer (not per-character
+ * String.fromCharCode) so multi-byte UTF-8 sequences reassemble correctly instead
+ * of becoming mojibake.
+ */
+function decodeQuotedPrintable(input: string): string {
+  const withoutSoftBreaks = input.replace(/=\n/g, "");
+  const bytes: number[] = [];
+  for (let i = 0; i < withoutSoftBreaks.length; i++) {
+    const hex = withoutSoftBreaks.slice(i + 1, i + 3);
+    if (withoutSoftBreaks[i] === "=" && /^[0-9A-Fa-f]{2}$/.test(hex)) {
+      bytes.push(parseInt(hex, 16));
+      i += 2;
+    } else {
+      bytes.push(withoutSoftBreaks.charCodeAt(i) & 0xff);
+    }
+  }
+  return Buffer.from(bytes).toString("utf-8");
+}
+
+/**
  * Parses raw email source (RFC 5322 headers + body) as pasted from
  * "Show original" / "View message details" / "All Headers" in a webmail client.
+ *
+ * Only decodes a top-level `Content-Transfer-Encoding: quoted-printable` — real
+ * multipart MIME messages (per-part boundaries/encodings) aren't parsed; this
+ * covers the common single-part export case.
  */
 export function parseRawEmail(raw: string): ParsedEmail {
   const normalized = raw.replace(/\r\n/g, "\n");
   const splitIndex = normalized.indexOf("\n\n");
   const headerBlock = splitIndex === -1 ? normalized : normalized.slice(0, splitIndex);
-  const body = splitIndex === -1 ? "" : normalized.slice(splitIndex + 2);
+  let body = splitIndex === -1 ? "" : normalized.slice(splitIndex + 2);
 
   // Unfold continuation lines (lines starting with whitespace belong to the previous header).
   const unfolded: string[] = [];
@@ -32,6 +56,11 @@ export function parseRawEmail(raw: string): ParsedEmail {
     } else {
       headers.set(name, [value]);
     }
+  }
+
+  const transferEncoding = headers.get("content-transfer-encoding")?.[0]?.toLowerCase();
+  if (transferEncoding?.includes("quoted-printable")) {
+    body = decodeQuotedPrintable(body);
   }
 
   return { headers, body };
