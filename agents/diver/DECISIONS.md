@@ -10,9 +10,13 @@ An agent that checks whether an email is a real, legitimate communication from w
 
 ## Input
 
-- **Text only** in v1 — no screenshot/image/vision pipeline. Screenshot support is a later additive layer (OCR/extract → feed into the same pipeline), not part of v1.
-- **Raw email source** (headers + body), not just a bare address — pasted into a single textarea. This is what unlocks real SPF/DKIM/DMARC/Received-chain analysis, not just domain-string tricks. Every major webmail exposes this for free ("Show original" in Gmail, "View message details" in Outlook, "All Headers" in Apple Mail) — no OAuth/API integration needed.
-- UX: one textarea, one short "how to get this" hint/link per major provider. No file upload, no mailbox-connect integration in v1. (Mailbox-connect flagged as a plausible later premium/SaaS feature, not ruled out, just not v1.)
+- **Raw email source** (headers + body) remains the richest input and is what unlocks real SPF/DKIM/DMARC/Received-chain analysis. Every major webmail exposes this for free ("Show original" in Gmail, "View message details" in Outlook, "All Headers" in Apple Mail) — no OAuth/API integration needed.
+- **Superseded:** v1 originally scoped input to "text only, full headers only." Revised (2026-11-05) once Diver got a real agent loop (see "Agent session mode" below) — now also accepts a bare email address, a bare URL, short free text, or an **image** (screenshot of an email/message/webpage). Mailbox-connect integration is still not in scope, flagged as a plausible later premium/SaaS feature.
+
+## Two modes
+
+- **Quick check** — the original, always-on deterministic path. Always runs all 5 checks against full raw email source, no model required at all. Unchanged by the agent-session work below; kept specifically because "a proper agent" doesn't mean the free, keyless, fully-auditable path should go away.
+- **Agent session** — the new agentic path (below). Requires a model backend (provider key or the dev-only Claude Code CLI bridge). Accepts any of the four input shapes.
 
 ## Checklist (v1 scope)
 
@@ -42,7 +46,23 @@ Chosen over both "static-only" (too weak — misses cloaked/shortened links) and
 
 ## Agent role
 
-**Deterministic checks are ground truth; the LLM only narrates.** Each check/tool returns pass/warn/fail + evidence. The agent's job is to run all checks and produce one plain-language summary — it never overrides a tool result based on its own "judgment" of ambiguous signals. Keeps the tool auditable (a security-adjacent verdict needs to be explainable by evidence, not model vibes) and makes the harness's event log genuinely informative to watch (tool calls are the real work; the final LLM step is narration only).
+**Deterministic checks are ground truth; models only plan and narrate, never grade.** Each check returns pass/warn/fail + evidence, and no model call ever overrides a check result. This held from v1 and still holds after the agent-session upgrade below — what changed is how many model calls happen and what they're responsible for.
+
+## Agent session mode (added 2026-11-05)
+
+v1's "LLM narrates a fixed checklist" was judged not to qualify as "a proper agent" — there was no decision being made, just narration bolted onto an always-identical pipeline. Revised architecture, two model calls around a deterministic core, not one model call wrapping it:
+
+1. **Planner** (one model call) — looks at the input (text or image) and decides two things: what structured fields it can extract (sender domain, display name, reply-to domain, auth headers, body/links) and which checks have enough data to be worth running. It does not run checks and does not grade anything.
+2. **Deterministic execution** (no model) — the server runs exactly the checks the Planner selected, using the exact same check functions as Quick check. Single dispatch table (`agents/diver/src/session.ts`) shared by both modes, so there's one source of truth for what each check does regardless of which mode invoked it.
+3. **Narrator** (one model call, same role as v1) — summarizes the plan + results in plain language. Still can't override anything.
+
+**Tiered extraction, to avoid unnecessary model calls:** if the input is plain text and deterministically looks like full email headers (`From:` line + a blank line), the Planner step is skipped entirely — extraction uses the existing deterministic parser (`extractFieldsFromRawEmail`), and `checksToRun` is just "every check that has supporting data." The Planner model call only happens for the genuinely ambiguous cases: a bare address, a bare URL, short free text, or an image. This keeps the well-handled case (today's only case) exactly as fast/free/auditable as before, and spends a real model call only where real judgment is needed.
+
+**Two backends, one interface.** Both the Planner and Narrator go through `completeText`/`runPlanner` in `sdk`, dispatched to either:
+- **A real provider** (Gemini/Anthropic/OpenAI, user's own key) — Planner uses `generateObject` with a Zod schema (structured output, supports multimodal messages for image input directly — no separate OCR step). Narrator uses `generateText`.
+- **Claude Code CLI (dev-only, never public)** — bridges the pattern already used in `~/Desktop/prompt-eval` (`child_process.execFile("claude", ["-p", prompt, "--system-prompt", system])`, no persistent session, one-shot completion). Since the CLI has no structured function-calling over a pipe, the Planner prompt asks for raw JSON text and the server parses/validates it with the same Zod schema. Gated two ways: the UI only shows this option when `NEXT_PUBLIC_ENABLE_CLAUDE_CLI_BACKEND=true` is set (never set on the deployed Vercel app), and the route itself rejects the backend with a 403 whenever `NODE_ENV === "production"` — so even a direct POST can't reach it on the public deployment. **Known gap:** image input isn't supported on this backend yet (returns a clear error rather than failing silently); untested end-to-end in the environment this was built in (subprocess invocation was deliberately not exercised during that session, to avoid spawning a nested Claude Code session) — first real test is on the developer's own machine.
+
+**Inspector visibility:** the Planner's decision (which checks it picked + a one-sentence reason) renders as its own "Plan" card before the check results, so an agent session is inspectable step-by-step rather than a single opaque response — consistent with the harness's "watch the agent work" positioning.
 
 ## Output format (v1 shape, expected to be refined after first build)
 

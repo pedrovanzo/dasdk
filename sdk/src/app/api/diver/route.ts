@@ -1,9 +1,6 @@
-import { generateText } from "ai";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createAnthropic } from "@ai-sdk/anthropic";
-import { createOpenAI } from "@ai-sdk/openai";
 import { runDiverChecklist } from "diver";
 import { z } from "zod";
+import { completeText } from "@/lib/model-backend";
 import type { ProviderId } from "@/lib/providers";
 
 const requestSchema = z.object({
@@ -16,17 +13,6 @@ const requestSchema = z.object({
     })
     .optional(),
 });
-
-function resolveModel(providerId: ProviderId, apiKey: string, model: string) {
-  switch (providerId) {
-    case "google":
-      return createGoogleGenerativeAI({ apiKey })(model);
-    case "anthropic":
-      return createAnthropic({ apiKey })(model);
-    case "openai":
-      return createOpenAI({ apiKey })(model);
-  }
-}
 
 const NARRATION_SYSTEM = `You are Diver, an email spoofing checker. You are given the results of a
 fixed checklist that already ran deterministically — you never override, re-grade, or second-guess
@@ -52,12 +38,11 @@ export async function POST(req: Request) {
   let narration: string | null = null;
   if (narrate) {
     try {
-      const { text } = await generateText({
-        model: resolveModel(narrate.providerId, narrate.apiKey, narrate.model),
-        system: NARRATION_SYSTEM,
-        prompt: JSON.stringify(result),
-      });
-      narration = text;
+      narration = await completeText(
+        { type: "provider", ...narrate },
+        NARRATION_SYSTEM,
+        JSON.stringify(result)
+      );
     } catch (error) {
       narration = `Narration failed: ${error instanceof Error ? error.message : "unknown error"}`;
     }

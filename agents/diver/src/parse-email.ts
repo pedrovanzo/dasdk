@@ -88,3 +88,16 @@ export function extractDomain(email: string | null): string | null {
   const at = email.lastIndexOf("@");
   return at === -1 ? null : email.slice(at + 1).toLowerCase();
 }
+
+/** Extracts the display name from a header value like `"Name" <user@domain.com>`. */
+export function extractDisplayName(headerValue: string | undefined): string | null {
+  if (!headerValue) return null;
+  const match = headerValue.match(/^"?([^"<]*)"?\s*<[^>]+>$/);
+  const name = match ? match[1].trim() : null;
+  return name && name.length > 0 ? name : null;
+}
+
+/** True if text looks like it contains real RFC 5322 headers (From: + a blank line), not just a bare address or URL. */
+export function looksLikeFullEmailSource(text: string): boolean {
+  return /^from\s*:/im.test(text) && /\n\s*\n/.test(text);
+}

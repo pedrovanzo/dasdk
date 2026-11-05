@@ -4,5 +4,5 @@ Agent that checks whether an email is real or a spoof/impersonation attempt (e.g
 
 dasdk's flagship real agent. Full decision log: [DECISIONS.md](./DECISIONS.md).
 
-Status: checklist logic built (`src/`) — all five checks implemented and smoke-tested (homoglyph/typosquat, SPF/DKIM/DMARC, reply-to mismatch, brand allowlist with pluggable web-search fallback, SSRF-guarded link-redirect resolution). Not yet wired into the `sdk` Inspector UI — `runDiverChecklist(rawEmail)` is the entry point.
+Status: wired into `sdk`'s Inspector with two modes — **Quick check** (deterministic-only, `runDiverChecklist(rawEmail)`) and **Agent session** (Planner → deterministic execution → Narrator, accepts text or image input, backed by a provider key or a dev-only Claude Code CLI bridge). See `DECISIONS.md` → "Agent session mode" for the architecture.
 

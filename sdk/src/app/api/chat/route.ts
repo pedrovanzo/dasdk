@@ -1,8 +1,6 @@
 import { streamText } from "ai";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createAnthropic } from "@ai-sdk/anthropic";
-import { createOpenAI } from "@ai-sdk/openai";
 import { z } from "zod";
+import { resolveModel } from "@/lib/resolve-model";
 import type { ProviderId } from "@/lib/providers";
 
 const requestSchema = z.object({
@@ -12,17 +10,6 @@ const requestSchema = z.object({
   prompt: z.string().min(1),
   system: z.string().optional(),
 });
-
-function resolveModel(providerId: ProviderId, apiKey: string, model: string) {
-  switch (providerId) {
-    case "google":
-      return createGoogleGenerativeAI({ apiKey })(model);
-    case "anthropic":
-      return createAnthropic({ apiKey })(model);
-    case "openai":
-      return createOpenAI({ apiKey })(model);
-  }
-}
 
 // Stateless proxy: the user's key and the request body are used for this
 // single call only, never logged or persisted anywhere.
