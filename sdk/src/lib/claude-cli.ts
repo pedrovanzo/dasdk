@@ -13,6 +13,20 @@ export function isClaudeCliBackendEnabled(): boolean {
   return process.env.NODE_ENV !== "production";
 }
 
+let cachedInstalled: boolean | null = null;
+
+/** Actually probes for a working `claude` binary (cheap `--version` call, not `-p`). Cached for the process lifetime. */
+export async function isClaudeCliInstalled(): Promise<boolean> {
+  if (cachedInstalled !== null) return cachedInstalled;
+  try {
+    await execFileAsync("claude", ["--version"], { timeout: 5_000 });
+    cachedInstalled = true;
+  } catch {
+    cachedInstalled = false;
+  }
+  return cachedInstalled;
+}
+
 export async function callClaudeCli(prompt: string, system?: string): Promise<string> {
   const args = ["-p", prompt];
   if (system) args.push("--system-prompt", system);

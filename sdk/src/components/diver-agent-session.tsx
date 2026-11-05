@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,10 +10,9 @@ import { useApiKey } from "@/lib/use-api-key";
 import { DEFAULT_MODELS } from "@/lib/providers";
 import { VerdictBanner, CheckResultsList, Narration, type Verdict, type CheckResult } from "@/components/diver-shared";
 
-const CLAUDE_CLI_ENABLED = process.env.NEXT_PUBLIC_ENABLE_CLAUDE_CLI_BACKEND === "true";
-
 type Plan = { extracted: Record<string, unknown>; checksToRun: string[]; reasoning: string };
 type SessionResponse = { plan: Plan; verdict: Verdict; checks: CheckResult[]; narration: string | null };
+type ClaudeCliStatus = "checking" | "available" | "unavailable";
 
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -29,12 +28,22 @@ export function DiverAgentSession() {
   const [inputKind, setInputKind] = useState<"text" | "image">("text");
   const [text, setText] = useState("");
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
-  const [useClaudeCli, setUseClaudeCli] = useState(false);
+  const [claudeCliStatus, setClaudeCliStatus] = useState<ClaudeCliStatus>("checking");
+  const [backendChoice, setBackendChoice] = useState<"claude-cli" | "provider" | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SessionResponse | null>(null);
 
-  const backendReady = Boolean(credential) || (CLAUDE_CLI_ENABLED && useClaudeCli);
+  useEffect(() => {
+    fetch("/api/claude-cli-status")
+      .then((res) => res.json())
+      .then((data: { available: boolean }) => setClaudeCliStatus(data.available ? "available" : "unavailable"))
+      .catch(() => setClaudeCliStatus("unavailable"));
+  }, []);
+
+  const claudeCliAvailable = claudeCliStatus === "available";
+  const effectiveBackend = backendChoice ?? (claudeCliAvailable ? "claude-cli" : credential ? "provider" : null);
+  const backendReady = effectiveBackend === "claude-cli" ? claudeCliAvailable : effectiveBackend === "provider" ? Boolean(credential) : false;
   const hasInput = inputKind === "text" ? text.trim().length > 0 : imageDataUrl !== null;
 
   async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -50,7 +59,7 @@ export function DiverAgentSession() {
     setResult(null);
     try {
       const backend =
-        CLAUDE_CLI_ENABLED && useClaudeCli
+        effectiveBackend === "claude-cli"
           ? { type: "claude-cli" as const }
           : credential
             ? {
@@ -136,26 +145,51 @@ export function DiverAgentSession() {
             <input type="file" accept="image/*" onChange={handleImageChange} className="text-sm" />
           )}
 
-          {CLAUDE_CLI_ENABLED && (
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={useClaudeCli}
-                onChange={(e) => setUseClaudeCli(e.target.checked)}
-              />
-              Use my local Claude Code session instead of a provider key (dev-only)
-            </label>
-          )}
+          <div className="flex flex-col gap-1.5 rounded-md border p-3 text-sm">
+            <span className="font-medium">Model backend</span>
+            {claudeCliStatus === "checking" && (
+              <span className="text-muted-foreground">Checking for a local Claude Code session...</span>
+            )}
+            {claudeCliStatus !== "checking" && (
+              <div className="flex flex-col gap-1">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="backend"
+                    disabled={!claudeCliAvailable}
+                    checked={effectiveBackend === "claude-cli"}
+                    onChange={() => setBackendChoice("claude-cli")}
+                  />
+                  <span className={claudeCliAvailable ? "" : "text-muted-foreground"}>
+                    My Claude Code subscription {claudeCliAvailable ? "(detected)" : "(not detected locally)"}
+                  </span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="backend"
+                    disabled={!credential}
+                    checked={effectiveBackend === "provider"}
+                    onChange={() => setBackendChoice("provider")}
+                  />
+                  <span className={credential ? "" : "text-muted-foreground"}>
+                    Connected provider key {credential ? `(${credential.providerId})` : "(none connected)"}
+                  </span>
+                </label>
+              </div>
+            )}
+            {claudeCliStatus === "unavailable" && !credential && (
+              <span className="text-xs text-muted-foreground">
+                No local Claude Code session found and no key connected — connect one above, or run{" "}
+                <code>claude</code> locally and make sure you&apos;re logged in.
+              </span>
+            )}
+          </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <Button nativeButton onClick={handleRun} disabled={loading || !hasInput || !backendReady}>
               {loading ? "Running..." : "Run agent session"}
             </Button>
-            {!backendReady && (
-              <span className="text-xs text-muted-foreground">
-                Connect a provider key above to run an agent session.
-              </span>
-            )}
           </div>
         </CardContent>
       </Card>
