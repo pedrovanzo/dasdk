@@ -13,6 +13,7 @@ import { VerdictBanner, CheckResultsList, Narration, type Verdict, type CheckRes
 type Plan = { extracted: Record<string, unknown>; checksToRun: string[]; reasoning: string };
 type SessionResponse = { plan: Plan; verdict: Verdict; checks: CheckResult[]; narration: string | null };
 type ClaudeCliStatus = "checking" | "available" | "unavailable";
+type ClaudeAccount = { id: string; label: string };
 
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -29,6 +30,8 @@ export function DiverAgentSession() {
   const [text, setText] = useState("");
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
   const [claudeCliStatus, setClaudeCliStatus] = useState<ClaudeCliStatus>("checking");
+  const [claudeAccounts, setClaudeAccounts] = useState<ClaudeAccount[]>([]);
+  const [claudeAccountId, setClaudeAccountId] = useState<string | null>(null);
   const [backendChoice, setBackendChoice] = useState<"claude-cli" | "provider" | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +40,11 @@ export function DiverAgentSession() {
   useEffect(() => {
     fetch("/api/claude-cli-status")
       .then((res) => res.json())
-      .then((data: { available: boolean }) => setClaudeCliStatus(data.available ? "available" : "unavailable"))
+      .then((data: { available: boolean; accounts: ClaudeAccount[] }) => {
+        setClaudeCliStatus(data.available ? "available" : "unavailable");
+        setClaudeAccounts(data.accounts);
+        setClaudeAccountId((current) => current ?? data.accounts[0]?.id ?? null);
+      })
       .catch(() => setClaudeCliStatus("unavailable"));
   }, []);
 
@@ -60,7 +67,7 @@ export function DiverAgentSession() {
     try {
       const backend =
         effectiveBackend === "claude-cli"
-          ? { type: "claude-cli" as const }
+          ? { type: "claude-cli" as const, account: claudeAccountId ?? undefined }
           : credential
             ? {
                 type: "provider" as const,
@@ -164,6 +171,21 @@ export function DiverAgentSession() {
                     My Claude Code subscription {claudeCliAvailable ? "(detected)" : "(not detected locally)"}
                   </span>
                 </label>
+                {effectiveBackend === "claude-cli" && claudeAccounts.length > 1 && (
+                  <div className="ml-6 flex flex-col gap-1 border-l pl-3">
+                    {claudeAccounts.map((account) => (
+                      <label key={account.id} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="radio"
+                          name="claude-account"
+                          checked={claudeAccountId === account.id}
+                          onChange={() => setClaudeAccountId(account.id)}
+                        />
+                        <span>{account.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
                 <label className="flex items-center gap-2">
                   <input
                     type="radio"

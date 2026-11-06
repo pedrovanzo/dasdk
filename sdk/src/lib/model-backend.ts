@@ -1,8 +1,10 @@
 import { generateText } from "ai";
 import { z } from "zod";
 import { resolveModel } from "@/lib/resolve-model";
-import { callClaudeCli, isClaudeCliBackendEnabled } from "@/lib/claude-cli";
+import { callClaudeCli, isClaudeCliBackendEnabled, CLAUDE_ACCOUNTS, type ClaudeAccountId } from "@/lib/claude-cli";
 import type { ProviderId } from "@/lib/providers";
+
+const claudeAccountIds = Object.keys(CLAUDE_ACCOUNTS) as [ClaudeAccountId, ...ClaudeAccountId[]];
 
 export const backendSchema = z.discriminatedUnion("type", [
   z.object({
@@ -11,7 +13,7 @@ export const backendSchema = z.discriminatedUnion("type", [
     apiKey: z.string().min(1),
     model: z.string().min(1),
   }),
-  z.object({ type: z.literal("claude-cli") }),
+  z.object({ type: z.literal("claude-cli"), account: z.enum(claudeAccountIds) }),
 ]);
 
 export type Backend = z.infer<typeof backendSchema>;
@@ -30,7 +32,7 @@ export class BackendNotAllowedError extends Error {
 
 export async function completeText(backend: Backend, system: string, prompt: string): Promise<string> {
   if (backend.type === "claude-cli") {
-    return callClaudeCli(prompt, system);
+    return callClaudeCli(prompt, system, backend.account);
   }
   const { text } = await generateText({
     model: resolveModel(backend.providerId, backend.apiKey, backend.model),

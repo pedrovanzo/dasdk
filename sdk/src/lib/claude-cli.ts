@@ -1,5 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import os from "node:os";
+import path from "node:path";
 
 const execFileAsync = promisify(execFile);
 
@@ -11,6 +13,26 @@ const execFileAsync = promisify(execFile);
  */
 export function isClaudeCliBackendEnabled(): boolean {
   return process.env.NODE_ENV !== "production";
+}
+
+/**
+ * `claude-work` / `claude-personal` on this machine are shell *functions*
+ * (defined in .zshrc), not real executables — execFile spawns processes
+ * directly without a shell, so it can never resolve those names. Both just
+ * run the same `claude` binary after pointing CLAUDE_CONFIG_DIR at a
+ * different credentials directory, which is the part that's actually
+ * reproducible here via execFile's `env` option.
+ */
+export const CLAUDE_ACCOUNTS = {
+  work: { label: "Work (pdsantos)", configDir: path.join(os.homedir(), ".claude") },
+  personal: { label: "Personal (pedro_vanzo)", configDir: path.join(os.homedir(), ".claude-personal") },
+} as const;
+
+export type ClaudeAccountId = keyof typeof CLAUDE_ACCOUNTS;
+
+function envForAccount(account?: ClaudeAccountId): NodeJS.ProcessEnv {
+  if (!account) return process.env;
+  return { ...process.env, CLAUDE_CONFIG_DIR: CLAUDE_ACCOUNTS[account].configDir };
 }
 
 let cachedInstalled: boolean | null = null;
@@ -77,7 +99,11 @@ function describeExecFileError(error: unknown): string {
   return combined;
 }
 
-export async function callClaudeCli(prompt: string, system?: string): Promise<string> {
+export async function callClaudeCli(
+  prompt: string,
+  system?: string,
+  account?: ClaudeAccountId
+): Promise<string> {
   const args = ["-p", prompt];
   if (system) args.push("--system-prompt", system);
 
@@ -89,6 +115,7 @@ export async function callClaudeCli(prompt: string, system?: string): Promise<st
   const execPromise = execFileAsync("claude", args, {
     timeout: 60_000,
     maxBuffer: 10 * 1024 * 1024,
+    env: envForAccount(account),
   });
   execPromise.child.stdin?.end();
 

@@ -87,7 +87,11 @@ export async function runPlanner(input: DiverInput, backend: Backend): Promise<P
     if (input.kind === "image") {
       throw new Error("The Claude Code CLI backend doesn't support image input yet — connect a provider key instead.");
     }
-    const text = await callClaudeCli(buildPlannerPrompt(input), `${PLANNER_SYSTEM}\n\n${CLI_JSON_SHAPE}`);
+    const text = await callClaudeCli(
+      buildPlannerPrompt(input),
+      `${PLANNER_SYSTEM}\n\n${CLI_JSON_SHAPE}`,
+      backend.account
+    );
     const jsonText = extractJsonFromText(text);
     if (jsonText === null) {
       throw new Error(
