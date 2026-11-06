@@ -67,7 +67,14 @@ function describeExecFileError(error: unknown): string {
   }
   if (parts.length === 0) parts.push(e.message);
 
-  return parts.join(" ");
+  const combined = parts.join(" ");
+  if (/oauth session expired|failed to authenticate/i.test(combined)) {
+    return (
+      "Your local Claude Code session has expired. Run `claude` in a terminal " +
+      `(or \`/login\` inside an existing session) to re-authenticate, then try again. (${combined})`
+    );
+  }
+  return combined;
 }
 
 export async function callClaudeCli(prompt: string, system?: string): Promise<string> {
