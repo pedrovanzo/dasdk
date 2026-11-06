@@ -61,6 +61,10 @@ function describeExecFileError(error: unknown): string {
   if (e.stderr?.trim()) {
     parts.push(`stderr: ${e.stderr.trim().slice(0, 500)}`);
   }
+  // Some CLIs print their real error to stdout instead of stderr on failure.
+  if (e.stdout?.trim()) {
+    parts.push(`stdout: ${e.stdout.trim().slice(0, 500)}`);
+  }
   if (parts.length === 0) parts.push(e.message);
 
   return parts.join(" ");
