@@ -27,6 +27,45 @@ export async function isClaudeCliInstalled(): Promise<boolean> {
   return cachedInstalled;
 }
 
+type ExecFileError = NodeJS.ErrnoException & {
+  stdout?: string;
+  stderr?: string;
+  signal?: NodeJS.Signals | null;
+  killed?: boolean;
+};
+
+/**
+ * Node's default exec/execFile failure message is just the restated command
+ * line ("Command failed: claude -p ...") — it says nothing about *why*. The
+ * real reason (timeout vs. crash vs. missing binary, and the process's own
+ * stderr) lives in separate fields on the error object that get dropped on
+ * the floor unless we pull them out ourselves.
+ */
+function describeExecFileError(error: unknown): string {
+  if (!(error instanceof Error)) return "claude CLI call failed for an unknown reason.";
+  const e = error as ExecFileError;
+  const parts: string[] = [];
+
+  if (e.killed && e.signal === "SIGTERM") {
+    parts.push("claude CLI call timed out (60s) and was killed.");
+  } else if (e.killed) {
+    parts.push(`claude CLI call was killed (signal ${e.signal}).`);
+  } else if (e.code === "ENOENT") {
+    parts.push("claude CLI binary not found on PATH.");
+  } else if (typeof e.code === "number") {
+    parts.push(`claude CLI exited with code ${e.code}.`);
+  } else if (e.code) {
+    parts.push(`claude CLI failed to start: ${e.code}.`);
+  }
+
+  if (e.stderr?.trim()) {
+    parts.push(`stderr: ${e.stderr.trim().slice(0, 500)}`);
+  }
+  if (parts.length === 0) parts.push(e.message);
+
+  return parts.join(" ");
+}
+
 export async function callClaudeCli(prompt: string, system?: string): Promise<string> {
   const args = ["-p", prompt];
   if (system) args.push("--system-prompt", system);
@@ -42,8 +81,12 @@ export async function callClaudeCli(prompt: string, system?: string): Promise<st
   });
   execPromise.child.stdin?.end();
 
-  const { stdout } = await execPromise;
-  return stdout.trim();
+  try {
+    const { stdout } = await execPromise;
+    return stdout.trim();
+  } catch (error) {
+    throw new Error(describeExecFileError(error));
+  }
 }
 
 /**
