@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import os from "node:os";
 import path from "node:path";
@@ -99,12 +99,64 @@ function describeExecFileError(error: unknown): string {
   return combined;
 }
 
+export type ClaudeCliUsage = {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadInputTokens?: number;
+  cacheCreationInputTokens?: number;
+};
+
+export type ClaudeCliResult = {
+  text: string;
+  usage?: ClaudeCliUsage;
+  costUsd?: number;
+};
+
+function parseCliUsage(usage: Record<string, unknown> | undefined): ClaudeCliUsage | undefined {
+  if (!usage) return undefined;
+  return {
+    inputTokens: Number(usage.input_tokens ?? 0),
+    outputTokens: Number(usage.output_tokens ?? 0),
+    cacheReadInputTokens: usage.cache_read_input_tokens !== undefined ? Number(usage.cache_read_input_tokens) : undefined,
+    cacheCreationInputTokens:
+      usage.cache_creation_input_tokens !== undefined ? Number(usage.cache_creation_input_tokens) : undefined,
+  };
+}
+
+/** Parses the single JSON object `--output-format json` prints to stdout on exit. */
+function parseCliJsonResult(stdout: string): ClaudeCliResult {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(stdout.trim());
+  } catch {
+    // Shouldn't normally happen with --output-format json, but don't lose the output if it does.
+    return { text: stdout.trim() };
+  }
+  const obj = parsed as Record<string, unknown>;
+  if (obj.is_error) {
+    throw new Error(typeof obj.result === "string" ? obj.result : "claude CLI reported an error.");
+  }
+  return {
+    text: typeof obj.result === "string" ? obj.result : stdout.trim(),
+    usage: parseCliUsage(obj.usage as Record<string, unknown> | undefined),
+    costUsd: typeof obj.total_cost_usd === "number" ? obj.total_cost_usd : undefined,
+  };
+}
+
 export async function callClaudeCli(
   prompt: string,
-  system?: string,
-  account?: ClaudeAccountId
-): Promise<string> {
-  const args = ["-p", prompt];
+  system: string | undefined,
+  account: ClaudeAccountId | undefined,
+  // Required, not optional with a default: forces every call site to state what this call
+  // actually needs, rather than silently inheriting whatever a given machine's own Claude Code
+  // settings happen to auto-allow. "" denies all tools (confirmed empirically — Claude Code does
+  // not fall back to interactive-approval-equivalent defaults in one-shot `-p` mode).
+  allowedTools: string
+): Promise<ClaudeCliResult> {
+  // --output-format json (instead of the default "text") wraps the answer in
+  // a JSON envelope that also carries token usage and USD cost — otherwise
+  // there's no way to report either back to the UI.
+  const args = ["-p", prompt, "--output-format", "json", "--allowedTools", allowedTools];
   if (system) args.push("--system-prompt", system);
 
   // execFile always opens a stdin pipe to the child but never closes it, so
@@ -121,10 +173,117 @@ export async function callClaudeCli(
 
   try {
     const { stdout } = await execPromise;
-    return stdout.trim();
+    return parseCliJsonResult(stdout);
   } catch (error) {
     throw new Error(describeExecFileError(error));
   }
+}
+
+/**
+ * Streaming variant for the Narrator call. `execFile` only resolves once the
+ * whole child process exits and buffers all of stdout, so it can't surface
+ * incremental text — this uses `spawn` directly and parses
+ * `--output-format stream-json` (requires `--verbose`), forwarding each
+ * assistant text delta to `onDelta` as it arrives. Final text + usage/cost
+ * come from the terminal `"result"` event, same envelope as the non-streaming
+ * JSON mode.
+ */
+export async function callClaudeCliStreaming(
+  prompt: string,
+  system: string | undefined,
+  account: ClaudeAccountId | undefined,
+  onDelta: (chunk: string) => void,
+  // See callClaudeCli's allowedTools doc comment — same reasoning, required not optional.
+  allowedTools: string
+): Promise<ClaudeCliResult> {
+  const args = [
+    "-p",
+    prompt,
+    "--output-format",
+    "stream-json",
+    "--include-partial-messages",
+    "--verbose",
+    "--allowedTools",
+    allowedTools,
+  ];
+  if (system) args.push("--system-prompt", system);
+
+  return new Promise<ClaudeCliResult>((resolve, reject) => {
+    const child = spawn("claude", args, { env: envForAccount(account) });
+    child.stdin.end();
+
+    let buffer = "";
+    let stderr = "";
+    let result: ClaudeCliResult | null = null;
+    let timedOut = false;
+
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGTERM");
+    }, 60_000);
+
+    function handleLine(line: string) {
+      if (!line.trim()) return;
+      let event: Record<string, unknown>;
+      try {
+        event = JSON.parse(line);
+      } catch {
+        return;
+      }
+      if (event.type === "stream_event") {
+        const streamEvent = event.event as Record<string, unknown> | undefined;
+        if (streamEvent?.type === "content_block_delta") {
+          const delta = streamEvent.delta as Record<string, unknown> | undefined;
+          if (delta?.type === "text_delta" && typeof delta.text === "string") {
+            onDelta(delta.text);
+          }
+        }
+      } else if (event.type === "result") {
+        if (event.is_error) {
+          stderr += typeof event.result === "string" ? event.result : "claude CLI reported an error.";
+          return;
+        }
+        result = {
+          text: typeof event.result === "string" ? event.result : "",
+          usage: parseCliUsage(event.usage as Record<string, unknown> | undefined),
+          costUsd: typeof event.total_cost_usd === "number" ? event.total_cost_usd : undefined,
+        };
+      }
+    }
+
+    child.stdout.on("data", (chunk: Buffer) => {
+      buffer += chunk.toString("utf8");
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) handleLine(line);
+    });
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString("utf8");
+    });
+
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      reject(new Error(describeExecFileError(Object.assign(error, { stderr }))));
+    });
+
+    child.on("close", (code, signal) => {
+      clearTimeout(timer);
+      if (buffer.trim()) handleLine(buffer);
+      if (timedOut) {
+        reject(new Error("claude CLI call timed out (60s) and was killed."));
+        return;
+      }
+      if (result) {
+        resolve(result);
+        return;
+      }
+      reject(
+        new Error(
+          describeExecFileError(Object.assign(new Error(`claude CLI exited with code ${code}`), { code, signal, stderr }))
+        )
+      );
+    });
+  });
 }
 
 /**

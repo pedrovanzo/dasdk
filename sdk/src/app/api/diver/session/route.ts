@@ -9,7 +9,8 @@ import {
   type CheckId,
 } from "diver";
 import { runPlanner, inputSchema } from "@/lib/diver-planner";
-import { backendSchema, completeText, assertBackendAllowed, BackendNotAllowedError } from "@/lib/model-backend";
+import { backendSchema, streamNarration, assertBackendAllowed, BackendNotAllowedError } from "@/lib/model-backend";
+import { addUsage, type CallUsage } from "@/lib/usage";
 
 const requestSchema = z.object({
   input: inputSchema,
@@ -49,6 +50,7 @@ export async function POST(req: Request) {
   }
 
   let plan: { extracted: ExtractedFields; checksToRun: CheckId[]; reasoning: string };
+  let plannerUsage: CallUsage | undefined;
 
   if (input.kind === "text" && looksLikeFullEmailSource(input.text)) {
     const extracted = extractFieldsFromRawEmail(input.text);
@@ -59,7 +61,9 @@ export async function POST(req: Request) {
     };
   } else {
     try {
-      plan = await runPlanner(input, backend);
+      const { usage, ...plannerPlan } = await runPlanner(input, backend);
+      plan = plannerPlan;
+      plannerUsage = usage;
     } catch (error) {
       return new Response(
         JSON.stringify({ error: error instanceof Error ? error.message : "Planning failed." }),
@@ -71,18 +75,40 @@ export async function POST(req: Request) {
   const checks = await runSelectedChecks(plan.extracted, plan.checksToRun);
   const verdict = computeVerdict(checks);
 
-  let narration: string | null = null;
-  try {
-    narration = await completeText(
-      backend,
-      NARRATION_SYSTEM,
-      JSON.stringify({ plan: { checksToRun: plan.checksToRun, reasoning: plan.reasoning }, verdict, checks })
-    );
-  } catch (error) {
-    narration = `Narration failed: ${error instanceof Error ? error.message : "unknown error"}`;
-  }
+  // Plan + checks are already fully resolved at this point (no model call left that
+  // could still fail with a different HTTP status), so it's safe to commit to a 200
+  // streaming response now: the client sees the plan/verdict/checks immediately instead
+  // of waiting for the narrator, then watches the narration text stream in as it's
+  // generated instead of waiting for the whole paragraph.
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      function send(event: Record<string, unknown>) {
+        controller.enqueue(encoder.encode(JSON.stringify(event) + "\n"));
+      }
 
-  return new Response(JSON.stringify({ plan, verdict, checks, narration }), {
-    headers: { "content-type": "application/json" },
+      send({ type: "result", plan, verdict, checks });
+
+      let narratorUsage: CallUsage | undefined;
+      try {
+        const { usage } = await streamNarration(
+          backend,
+          NARRATION_SYSTEM,
+          JSON.stringify({ plan: { checksToRun: plan.checksToRun, reasoning: plan.reasoning }, verdict, checks }),
+          (chunk) => send({ type: "narration-delta", text: chunk })
+        );
+        narratorUsage = usage;
+      } catch (error) {
+        send({
+          type: "narration-delta",
+          text: `Narration failed: ${error instanceof Error ? error.message : "unknown error"}`,
+        });
+      }
+
+      send({ type: "done", usage: addUsage(plannerUsage, narratorUsage) });
+      controller.close();
+    },
   });
+
+  return new Response(stream, { headers: { "content-type": "application/x-ndjson" } });
 }

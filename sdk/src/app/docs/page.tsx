@@ -1,7 +1,7 @@
 const sections = [
   {
     title: "What this is",
-    body: "dasdk is an ecosystem of three pieces: sdk (this harness), scaffold (a .md-driven agent generator you run locally), and agents (real and demo agents you can try right here). \"dasdk\" = default demo-project prefix (\"d\") + agent software development kit (\"asdk\").",
+    body: "dasdk is an ecosystem of three pieces: sdk (this harness), scaffold (a .md-driven agent generator you run locally), and agents (real and demo agents you can try right here). \"dasdk\" = Demo Agent Software Development Kit.",
   },
   {
     title: "Concepts",

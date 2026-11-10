@@ -139,6 +139,17 @@ runtime:
   - Image input is not supported on the CLI backend yet (clear error, not
     silent failure).
 
+**Token usage + streaming (added 2026-11-06).** Agent session now streams:
+Plan/checks render the instant they're ready instead of waiting on the
+Narrator too, and the Narrator's text streams in token-by-token for both
+backends (CLI backend via `spawn` + `--output-format stream-json`, replacing
+`execFile` which can't deliver incremental output). A one-line token/cost
+summary now shows under results on both Quick check and Agent session — real
+USD cost for the CLI backend (`--output-format json` exposes it), token
+counts only for provider keys (no cost visible to this app). Full detail,
+including a flagged-not-fixed finding about local `SessionStart` hooks
+inflating CLI-backend token counts: `agents/diver/DECISIONS.md`.
+
 ## Gotchas hit and fixed (don't rediscover these)
 
 1. **shadcn/ui here is on Base UI, not Radix.** `asChild` doesn't exist —
@@ -175,35 +186,130 @@ runtime:
    — the latter mangles multi-byte UTF-8 sequences. Only the top-level
    header is handled; real multipart MIME (per-part encodings/boundaries)
    is not parsed — known gap.
+7. **A huge `UsageLine` total on the Claude CLI backend (100k+ tokens) is
+   normal, not a bug.** Each `claude -p` call loads Claude Code's own full
+   environment first — full tool catalog, skills, slash commands, settings
+   — before it even sees the actual prompt; that's almost all of what shows
+   up as "cached" tokens, not anything this app added (confirmed: a
+   trivial "say hi" test already showed ~23k tokens of fixed context after
+   the caveman-hook fix). Anthropic bills/meters cached tokens at a steep
+   discount vs. fresh ones, which is why a 200k-token total can correspond
+   to ~2% of a subscription's usage window rather than looking proportional
+   to the raw number. `UsageLine` (`diver-shared.tsx`) now has a collapsible
+   breakdown explaining this inline. Full writeup: root `DECISIONS.md` →
+   "Claude Code CLI subscription backend — componentized across all
+   browser-wired agents".
+8. **A workspace package's main entry is never safe to import from a
+   `"use client"` file "just for one small thing."** Relocating Diver's
+   `SAMPLE_EMAIL` fixture into the `diver` package and re-exporting it from
+   `diver`'s main entry seemed like harmless de-duplication — but a client
+   component importing from plain `"diver"` pulled in the *entire* package
+   graph, including a `node:dns/promises` import three files deep
+   (`checks/link-redirect.ts`), and Turbopack hard-panicked trying to
+   bundle a Node builtin for the browser (`/agents/diver` 500'd). `tsc` and
+   `eslint` both stayed green through this — only an actual page load
+   caught it. Fix: add a narrow `exports` subpath (`"./fixtures"`) that
+   pulls in nothing else, same pattern already used for `"./evals"`. Full
+   writeup: root `DECISIONS.md` → "Eval runner — built (2026-11-10)".
+
+9. **A Node-based tool's TLS fetch can fail even when `curl` to the same
+   host works fine.** `pnpm add <new-package>` hung, looking identical to
+   gotcha #7's pnpm-workspace-linking hang — but `--offline` doesn't help
+   when installing a genuinely new external package. Real cause: `FetchError:
+   self-signed certificate in certificate chain` — this machine's network
+   intercepts TLS (corporate proxy), and `curl` tolerates it silently because
+   it trusts the macOS System Keychain, but Node/pnpm's bundled CA store
+   doesn't consult that keychain. Fix: export the system's trusted roots
+   (`security find-certificate -a -p /Library/Keychains/System.keychain`
+   + `SystemRootCertificates.keychain`) to a PEM file and set
+   `NODE_EXTRA_CA_CERTS` to it for the install. Full writeup: root
+   `DECISIONS.md` → "Homepage showcase — built (2026-11-10)".
 
 ## What's next (original roadmap, in rough build order)
 
-From the original 7-item roadmap, **1–4 are done** (provider key, chat
-proxy, Diver's checklist logic, Inspector wiring — now much more than
-originally scoped, see above). Remaining:
+From the original 7-item roadmap, **all 7 are done** (provider key, chat
+proxy, Diver's checklist logic, Inspector wiring, scaffold package content,
+both toy agents, eval runner — now much more than originally scoped, see
+above). The roadmap's original build order is complete; remaining work is
+now the "other open items" below.
 
-5. **`scaffold` package** — not started beyond a README. Decided shape
-   (see root `DECISIONS.md` → "Scaffold `.md` direction file format"):
-   Matt Pocock–style minimal `AGENTS.md` + progressive-disclosure `docs/`
-   folder, NOT the fuller Alura/ADK-style upfront brief. Two flavors
-   (Python, TypeScript). Scaffold generation is explicitly **local-only
-   forever** — the deployed app only shows a dummy/read-only preview of the
-   concept, never actually generates files.
-6. **Eval runner** — not started. Decided shape: per-agent graders (not
-   centralized), test cases co-located with each agent (e.g.
-   `agents/diver/evals/`), `sdk`'s harness is a generic runner that
-   discovers whatever `evals/` folder exists per agent. The
-   `/agents/[agent]/evals` page currently just shows a placeholder string.
-7. **Toy agents** — `web-search-agent` (TypeScript, Pocock-style,
-   web-search tool) and `image-reader` (Python, vision-based) are each
-   just a README right now, no code. Needed to actually prove out both
-   scaffold flavors and to populate the harness demo with more than one
-   real example.
+5. ~~**`scaffold` package**~~ — **content built 2026-11-09**, via a
+   `/grilling` session closing the open questions from root `DECISIONS.md` →
+   "Scaffold `.md` direction file format". Both flavors exist:
+   `scaffold/typescript/` (grounded in `agents/diver/`'s real, proven
+   plumbing — both LLM backends) and `scaffold/python/` (conceptual-only
+   Google ADK conventions, honestly flagged as unvalidated — no real Python
+   agent exists in this repo yet). Each is a tiny root `AGENTS.md` + `docs/`
+   (progressive disclosure, Pocock-style) presenting a **menu of
+   non-functional example directions**, not one working example:
+   TypeScript gets `web-search-agent`, `joke-maker`, `document-mapper`;
+   Python gets `image-reader`, `dataframe-analyst`,
+   `iterative-refinement-agent`. Mechanism is pure prompt-paste for v1 (no
+   code, no CLI) — shaped to not foreclose a thin invocation script or an
+   ambient-convention mode later. Full rationale: root `DECISIONS.md` →
+   "Scaffold package — built (2026-11-09)".
+   **Still not built:** the deployed read-only scaffold-preview page
+   (content-only this round, deliberately deferred — see that same
+   `DECISIONS.md` section).
+6. ~~**Eval runner**~~ — **built 2026-11-10**, deliberately *after* item 7
+   specifically so the design got checked against two real,
+   differently-shaped agents (Diver's structured exact-match output,
+   `web-search-agent`'s free-text output) instead of just Diver. `/agents/
+   [agent]/evals` is real for both: Diver's is server-run, keyless,
+   exact-match against 4 hand-verified cases (`POST /api/evals/diver`,
+   backed by `agents/diver/src/evals/`); `web-search-agent`'s is
+   client-run against the user's chosen backend, substring-graded
+   (`agents/web-search-agent/src/evals/`), reusing the exact same
+   `/api/web-search-agent` route and SSE-parsing logic the live inspector
+   uses (`sdk/src/lib/web-search-client.ts`) rather than a separate
+   implementation. `image-reader` stays out of scope — Python/local-only,
+   nothing here for it to plug into. Full rationale, including a real
+   client-bundle regression caught before shipping: root `DECISIONS.md` →
+   "Eval runner — built (2026-11-10)".
+7. ~~**Toy agents**~~ — **built 2026-11-09.** `web-search-agent`
+   (TypeScript) is a real multi-step tool-use loop using each provider's
+   native web-search tool (`anthropic.tools.webSearch_*`,
+   `google.tools.googleSearch`, `openai.tools.webSearch` — all three
+   already present in the installed SDK versions), fully wired into `sdk`
+   (streamed, live search-trace UI, reuses Diver's `UsageLine`/`CallUsage`).
+   `image-reader` (Python) is a real, working standalone package —
+   `google-genai` directly rather than `google-adk` (see
+   `scaffold/python/docs/MODEL-BACKENDS.md` for why), verified against the
+   live Gemini endpoint (real auth-error round-trip; no key available here
+   to test actual vision output). `image-reader` is local-only by design —
+   `sdk`'s agent page links to its README rather than embedding a live demo.
+   **Side effect worth acting on:** `web-search-agent` solves the exact
+   native-provider-search wiring that Diver's own deferred brand-allowlist
+   fallback (below) has been blocked on — revisit that item with this as a
+   reference.
+   **Environment quirk hit while building this, not a code bug:** plain
+   `pnpm install` hangs indefinitely in this sandbox the first time a new
+   workspace package needs linking (reproduced independently three times,
+   including outside any subagent) — stalls right after dependency
+   resolution with nothing left to download, so it's some registry
+   freshness check stalling rather than a real missing-dependency problem.
+   `pnpm install --offline` completes in ~1s and links correctly, since
+   everything needed was already in the local store. Use `--offline` first
+   in this environment when adding a new workspace package whose
+   dependencies are already used elsewhere in the repo.
 
 Other open items, not yet started:
-- **Harness UI/UX visual polish** — explicitly deferred since the original
-  grilling session; structural decisions (shadcn/ui + Tailwind, routed
-  pages not sidebar) are locked, but color/density/layout specifics are not.
+- **Harness UI/UX revamp, sharpened (2026-11-10): the real reference point is Google ADK's
+  local Web UI — closer to it, not a clone of it.** User's own words: "I feel I have a
+  documentation page still." Structural decisions from the original grilling session (shadcn/ui +
+  Tailwind, routed pages not a sidebar SPA) are locked and not being revisited — this is about
+  feel/interaction density, not architecture. Explicitly **not executed yet** — needs its own
+  `/grilling` session first to pin down specifics (what "closer to ADK's Web UI" actually means
+  page-by-page) before any real redesign work starts. A handful of small palliative tweaks landed
+  2026-11-10 in the meantime (navbar acronym, homepage restructured toward a presentation/landing
+  feel with feature cards, "Connect model key" moved out of the global nav into `ModelBackendPicker`
+  where it's actually relevant, lucide-react icons added) — these do not replace the grilling
+  session or the real revamp, explicitly called out as stopgaps only.
+  **Follow-up, same day:** the homepage itself then got a real bold pass (not just a stopgap) —
+  a 3-panel `DiagonalShowcase` with hover-speed-reactive `motion`-powered animations (circuit traces,
+  a filling line graph, a typewriter effect), modeled directly on user-supplied reference images.
+  Scoped to `/` only — the rest of the app (agent pages, evals, docs) still awaits the full revamp.
+  Full writeup: root `DECISIONS.md` → "Homepage showcase — built (2026-11-10)".
 - **Brand allowlist's native-search fallback** — the `BrandLookup` hook
   exists in `agents/diver/src/checks/brand-allowlist.ts` but nothing
   implements it yet (would need to wire an actual Gemini/Claude/OpenAI

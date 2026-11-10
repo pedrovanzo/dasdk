@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
-import { ApiKeyDialog } from "@/components/api-key-dialog";
+import { Bot } from "lucide-react";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -28,18 +28,19 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col">
         <header className="border-b">
           <nav className="mx-auto flex max-w-5xl items-center gap-6 px-6 py-4 text-sm">
-            <Link href="/" className="font-semibold">
+            <Link href="/" className="flex items-center gap-2 font-semibold">
+              <Bot className="h-5 w-5" aria-hidden />
               dasdk
             </Link>
-            <Link href="/agents" className="text-muted-foreground hover:text-foreground">
+            <span className="hidden text-xs text-muted-foreground sm:inline">
+              Demo Agent Software Development Kit
+            </span>
+            <Link href="/agents" className="ml-auto text-muted-foreground hover:text-foreground">
               Agents
             </Link>
             <Link href="/docs" className="text-muted-foreground hover:text-foreground">
               Docs
             </Link>
-            <div className="ml-auto">
-              <ApiKeyDialog />
-            </div>
           </nav>
         </header>
         <main className="flex flex-1 flex-col">{children}</main>

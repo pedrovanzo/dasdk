@@ -1,8 +1,9 @@
-import { generateText } from "ai";
+import { generateText, streamText } from "ai";
 import { z } from "zod";
 import { resolveModel } from "@/lib/resolve-model";
-import { callClaudeCli, isClaudeCliBackendEnabled, CLAUDE_ACCOUNTS, type ClaudeAccountId } from "@/lib/claude-cli";
+import { callClaudeCli, callClaudeCliStreaming, isClaudeCliBackendEnabled, CLAUDE_ACCOUNTS, type ClaudeAccountId } from "@/lib/claude-cli";
 import type { ProviderId } from "@/lib/providers";
+import { fromCliResult, type CallUsage } from "@/lib/usage";
 
 const claudeAccountIds = Object.keys(CLAUDE_ACCOUNTS) as [ClaudeAccountId, ...ClaudeAccountId[]];
 
@@ -30,14 +31,54 @@ export class BackendNotAllowedError extends Error {
   }
 }
 
-export async function completeText(backend: Backend, system: string, prompt: string): Promise<string> {
+export type TextResult = { text: string; usage?: CallUsage };
+
+/**
+ * `allowedTools` is required, not defaulted, for the claude-cli backend — forces every caller to
+ * state what this specific call actually needs (most callers need none; a tool-using agent states
+ * exactly which ones) rather than silently inheriting whatever a given machine's own Claude Code
+ * settings happen to auto-allow. Ignored for the provider backend.
+ */
+export async function completeText(
+  backend: Backend,
+  system: string,
+  prompt: string,
+  allowedTools: string = ""
+): Promise<TextResult> {
   if (backend.type === "claude-cli") {
-    return callClaudeCli(prompt, system, backend.account);
+    const result = await callClaudeCli(prompt, system, backend.account, allowedTools);
+    return { text: result.text, usage: fromCliResult(result) };
   }
-  const { text } = await generateText({
+  const { text, usage } = await generateText({
     model: resolveModel(backend.providerId, backend.apiKey, backend.model),
     system,
     prompt,
   });
-  return text;
+  return { text, usage: { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, totalTokens: usage.totalTokens } };
+}
+
+/** Same as completeText, but forwards text chunks to onDelta as they arrive instead of waiting for the full response. */
+export async function streamNarration(
+  backend: Backend,
+  system: string,
+  prompt: string,
+  onDelta: (chunk: string) => void,
+  allowedTools: string = ""
+): Promise<TextResult> {
+  if (backend.type === "claude-cli") {
+    const result = await callClaudeCliStreaming(prompt, system, backend.account, onDelta, allowedTools);
+    return { text: result.text, usage: fromCliResult(result) };
+  }
+  const result = streamText({
+    model: resolveModel(backend.providerId, backend.apiKey, backend.model),
+    system,
+    prompt,
+  });
+  let fullText = "";
+  for await (const chunk of result.textStream) {
+    fullText += chunk;
+    onDelta(chunk);
+  }
+  const usage = await result.usage;
+  return { text: fullText, usage: { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, totalTokens: usage.totalTokens } };
 }

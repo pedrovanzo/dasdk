@@ -19,3 +19,4 @@ export { computeVerdict } from "./verdict";
 export { parseRawEmail, extractEmailAddress, extractDomain, looksLikeFullEmailSource } from "./parse-email";
 export { SEARCH_CAPABLE_PROVIDERS } from "./checks/brand-allowlist";
 export type { BrandLookup } from "./checks/brand-allowlist";
+export { SAMPLE_EMAIL } from "./fixtures";

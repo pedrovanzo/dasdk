@@ -4,7 +4,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { DiverInspector } from "@/components/diver-inspector";
+import { WebSearchAgentInspector } from "@/components/web-search-agent-inspector";
 import { agents, getAgent } from "@/lib/agents";
+
+// One entry per agent with a live, browser-based inspector. Agents not listed
+// here either aren't wired up yet, or (see AgentDefinition.localOnly) are a
+// Python/ADK-style agent that only runs as a standalone local package.
+const INSPECTORS: Record<string, () => React.ReactNode> = {
+  diver: () => <DiverInspector />,
+  "web-search-agent": () => <WebSearchAgentInspector />,
+};
 
 export function generateStaticParams() {
   return agents.map((agent) => ({ agent: agent.slug }));
@@ -40,8 +49,13 @@ export default async function AgentPage({
           />
         </TabsList>
         <TabsContent value="inspector" className="flex flex-col gap-4">
-          {agent.slug === "diver" ? (
-            <DiverInspector />
+          {agent.slug in INSPECTORS ? (
+            INSPECTORS[agent.slug]()
+          ) : agent.localOnly ? (
+            <p className="text-sm text-muted-foreground">
+              This is a Python/ADK-style agent — it runs as a standalone local package, not inside this
+              browser demo. See <code>agents/{agent.slug}/README.md</code> for how to run it.
+            </p>
           ) : (
             <>
               <p className="text-sm text-muted-foreground">

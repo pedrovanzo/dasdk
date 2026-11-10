@@ -4,6 +4,7 @@ import { CHECK_IDS, CHECK_CATALOG, EMPTY_EXTRACTED_FIELDS, type ExtractedFields,
 import { resolveModel } from "@/lib/resolve-model";
 import { callClaudeCli, extractJsonFromText } from "@/lib/claude-cli";
 import type { Backend } from "@/lib/model-backend";
+import { fromCliResult, type CallUsage } from "@/lib/usage";
 
 export const inputSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("text"), text: z.string().min(1) }),
@@ -28,6 +29,7 @@ export type PlannerOutput = {
   extracted: ExtractedFields;
   checksToRun: CheckId[];
   reasoning: string;
+  usage?: CallUsage;
 };
 
 const CHECKLIST_DESCRIPTION = CHECK_IDS.map(
@@ -74,11 +76,12 @@ function buildPlannerPrompt(input: DiverInput): string {
   return `Input to check:\n\n${input.text}`;
 }
 
-function normalize(raw: z.infer<typeof plannerSchema>): PlannerOutput {
+function normalize(raw: z.infer<typeof plannerSchema>, usage?: CallUsage): PlannerOutput {
   return {
     extracted: { ...EMPTY_EXTRACTED_FIELDS, ...raw.extracted },
     checksToRun: raw.checksToRun,
     reasoning: raw.reasoning,
+    usage,
   };
 }
 
@@ -87,30 +90,31 @@ export async function runPlanner(input: DiverInput, backend: Backend): Promise<P
     if (input.kind === "image") {
       throw new Error("The Claude Code CLI backend doesn't support image input yet — connect a provider key instead.");
     }
-    const text = await callClaudeCli(
+    const cliResult = await callClaudeCli(
       buildPlannerPrompt(input),
       `${PLANNER_SYSTEM}\n\n${CLI_JSON_SHAPE}`,
-      backend.account
+      backend.account,
+      "" // Planner only extracts structured fields from the given input — no tool access needed or wanted.
     );
-    const jsonText = extractJsonFromText(text);
+    const jsonText = extractJsonFromText(cliResult.text);
     if (jsonText === null) {
       throw new Error(
         "The local Claude Code session responded with free-form text instead of the expected JSON " +
           "(this can happen on accounts with organization-level policies that affect how Claude Code " +
-          `behaves, which no prompt here can override). Raw response: ${text.slice(0, 300)}`
+          `behaves, which no prompt here can override). Raw response: ${cliResult.text.slice(0, 300)}`
       );
     }
     let parsed: unknown;
     try {
       parsed = JSON.parse(jsonText);
     } catch {
-      throw new Error(`Planner (Claude CLI) didn't return valid JSON: ${text.slice(0, 300)}`);
+      throw new Error(`Planner (Claude CLI) didn't return valid JSON: ${cliResult.text.slice(0, 300)}`);
     }
     const result = plannerSchema.safeParse(parsed);
     if (!result.success) {
       throw new Error(`Planner (Claude CLI) JSON didn't match the expected shape: ${result.error.message}`);
     }
-    return normalize(result.data);
+    return normalize(result.data, fromCliResult(cliResult));
   }
 
   const model = resolveModel(backend.providerId, backend.apiKey, backend.model);
@@ -121,12 +125,12 @@ export async function runPlanner(input: DiverInput, backend: Backend): Promise<P
     content.push({ type: "image", image: input.dataUrl });
   }
 
-  const { object } = await generateObject({
+  const { object, usage } = await generateObject({
     model,
     schema: plannerSchema,
     system: PLANNER_SYSTEM,
     messages: [{ role: "user", content }],
   });
 
-  return normalize(object);
+  return normalize(object, { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, totalTokens: usage.totalTokens });
 }

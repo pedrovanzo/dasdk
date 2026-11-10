@@ -3,6 +3,11 @@ export type AgentDefinition = {
   name: string;
   tagline: string;
   description: string;
+  // Python/ADK-style agents can't auto-wire into this Next.js app the way a
+  // TypeScript agent can (no HTTP wrapper exists) — they run as standalone
+  // local packages instead. The inspector page shows a "run locally" pointer
+  // for these rather than a live demo.
+  localOnly?: boolean;
 };
 
 export const agents: AgentDefinition[] = [
@@ -26,6 +31,7 @@ export const agents: AgentDefinition[] = [
     tagline: "Describes and extracts text from an image",
     description:
       "Toy agent in the Python / ADK-style flavor. Takes an uploaded image and uses a vision-capable model to describe it and extract any text.",
+    localOnly: true,
   },
 ];
 

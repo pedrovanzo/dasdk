@@ -1,19 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { useApiKey } from "@/lib/use-api-key";
-import { DEFAULT_MODELS } from "@/lib/providers";
-import { VerdictBanner, CheckResultsList, Narration, type Verdict, type CheckResult } from "@/components/diver-shared";
+import { useModelBackend } from "@/lib/use-model-backend";
+import { ModelBackendPicker } from "@/components/model-backend-picker";
+import {
+  VerdictBanner,
+  CheckResultsList,
+  Narration,
+  UsageLine,
+  type Verdict,
+  type CheckResult,
+  type CallUsage,
+} from "@/components/diver-shared";
 
 type Plan = { extracted: Record<string, unknown>; checksToRun: string[]; reasoning: string };
-type SessionResponse = { plan: Plan; verdict: Verdict; checks: CheckResult[]; narration: string | null };
-type ClaudeCliStatus = "checking" | "available" | "unavailable";
-type ClaudeAccount = { id: string; label: string };
+type SessionResult = { plan: Plan; verdict: Verdict; checks: CheckResult[] };
 
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -25,32 +31,17 @@ function fileToDataUrl(file: File): Promise<string> {
 }
 
 export function DiverAgentSession() {
-  const { credential } = useApiKey();
+  const model = useModelBackend();
   const [inputKind, setInputKind] = useState<"text" | "image">("text");
   const [text, setText] = useState("");
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
-  const [claudeCliStatus, setClaudeCliStatus] = useState<ClaudeCliStatus>("checking");
-  const [claudeAccounts, setClaudeAccounts] = useState<ClaudeAccount[]>([]);
-  const [claudeAccountId, setClaudeAccountId] = useState<string | null>(null);
-  const [backendChoice, setBackendChoice] = useState<"claude-cli" | "provider" | null>(null);
   const [loading, setLoading] = useState(false);
+  const [narrating, setNarrating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<SessionResponse | null>(null);
+  const [result, setResult] = useState<SessionResult | null>(null);
+  const [narration, setNarration] = useState<string | null>(null);
+  const [usage, setUsage] = useState<CallUsage | undefined>(undefined);
 
-  useEffect(() => {
-    fetch("/api/claude-cli-status")
-      .then((res) => res.json())
-      .then((data: { available: boolean; accounts: ClaudeAccount[] }) => {
-        setClaudeCliStatus(data.available ? "available" : "unavailable");
-        setClaudeAccounts(data.accounts);
-        setClaudeAccountId((current) => current ?? data.accounts[0]?.id ?? null);
-      })
-      .catch(() => setClaudeCliStatus("unavailable"));
-  }, []);
-
-  const claudeCliAvailable = claudeCliStatus === "available";
-  const effectiveBackend = backendChoice ?? (claudeCliAvailable ? "claude-cli" : credential ? "provider" : null);
-  const backendReady = effectiveBackend === "claude-cli" ? claudeCliAvailable : effectiveBackend === "provider" ? Boolean(credential) : false;
   const hasInput = inputKind === "text" ? text.trim().length > 0 : imageDataUrl !== null;
 
   async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -60,41 +51,60 @@ export function DiverAgentSession() {
   }
 
   async function handleRun() {
-    if (!hasInput || !backendReady) return;
+    if (!hasInput || !model.backendReady || !model.backend) return;
     setLoading(true);
     setError(null);
     setResult(null);
+    setNarration(null);
+    setUsage(undefined);
     try {
-      const backend =
-        effectiveBackend === "claude-cli"
-          ? { type: "claude-cli" as const, account: claudeAccountId ?? undefined }
-          : credential
-            ? {
-                type: "provider" as const,
-                providerId: credential.providerId,
-                apiKey: credential.apiKey,
-                model: DEFAULT_MODELS[credential.providerId],
-              }
-            : null;
-      if (!backend) throw new Error("No backend available.");
-
       const input =
         inputKind === "text" ? { kind: "text" as const, text } : { kind: "image" as const, dataUrl: imageDataUrl! };
 
       const res = await fetch("/api/diver/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input, backend }),
+        body: JSON.stringify({ input, backend: model.backend }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         throw new Error(typeof body?.error === "string" ? body.error : `Request failed (${res.status})`);
       }
-      setResult(await res.json());
+      if (!res.body) throw new Error("No response stream.");
+
+      setNarrating(true);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let narrationSoFar = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const event = JSON.parse(line) as
+            | { type: "result"; plan: Plan; verdict: Verdict; checks: CheckResult[] }
+            | { type: "narration-delta"; text: string }
+            | { type: "done"; usage?: CallUsage };
+          if (event.type === "result") {
+            setResult({ plan: event.plan, verdict: event.verdict, checks: event.checks });
+          } else if (event.type === "narration-delta") {
+            narrationSoFar += event.text;
+            setNarration(narrationSoFar);
+          } else if (event.type === "done") {
+            setUsage(event.usage);
+          }
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setLoading(false);
+      setNarrating(false);
     }
   }
 
@@ -152,64 +162,10 @@ export function DiverAgentSession() {
             <input type="file" accept="image/*" onChange={handleImageChange} className="text-sm" />
           )}
 
-          <div className="flex flex-col gap-1.5 rounded-md border p-3 text-sm">
-            <span className="font-medium">Model backend</span>
-            {claudeCliStatus === "checking" && (
-              <span className="text-muted-foreground">Checking for a local Claude Code session...</span>
-            )}
-            {claudeCliStatus !== "checking" && (
-              <div className="flex flex-col gap-1">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="backend"
-                    disabled={!claudeCliAvailable}
-                    checked={effectiveBackend === "claude-cli"}
-                    onChange={() => setBackendChoice("claude-cli")}
-                  />
-                  <span className={claudeCliAvailable ? "" : "text-muted-foreground"}>
-                    My Claude Code subscription {claudeCliAvailable ? "(detected)" : "(not detected locally)"}
-                  </span>
-                </label>
-                {effectiveBackend === "claude-cli" && claudeAccounts.length > 1 && (
-                  <div className="ml-6 flex flex-col gap-1 border-l pl-3">
-                    {claudeAccounts.map((account) => (
-                      <label key={account.id} className="flex items-center gap-2 text-sm">
-                        <input
-                          type="radio"
-                          name="claude-account"
-                          checked={claudeAccountId === account.id}
-                          onChange={() => setClaudeAccountId(account.id)}
-                        />
-                        <span>{account.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                )}
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="backend"
-                    disabled={!credential}
-                    checked={effectiveBackend === "provider"}
-                    onChange={() => setBackendChoice("provider")}
-                  />
-                  <span className={credential ? "" : "text-muted-foreground"}>
-                    Connected provider key {credential ? `(${credential.providerId})` : "(none connected)"}
-                  </span>
-                </label>
-              </div>
-            )}
-            {claudeCliStatus === "unavailable" && !credential && (
-              <span className="text-xs text-muted-foreground">
-                No local Claude Code session found and no key connected — connect one above, or run{" "}
-                <code>claude</code> locally and make sure you&apos;re logged in.
-              </span>
-            )}
-          </div>
+          <ModelBackendPicker model={model} />
 
           <div className="flex flex-wrap items-center gap-2">
-            <Button nativeButton onClick={handleRun} disabled={loading || !hasInput || !backendReady}>
+            <Button nativeButton onClick={handleRun} disabled={loading || !hasInput || !model.backendReady}>
               {loading ? "Running..." : "Run agent session"}
             </Button>
           </div>
@@ -238,7 +194,9 @@ export function DiverAgentSession() {
 
           <VerdictBanner verdict={result.verdict} />
           <CheckResultsList checks={result.checks} />
-          <Narration text={result.narration} />
+          {narrating && !narration && <p className="text-sm text-muted-foreground">Narrating...</p>}
+          <Narration text={narration} />
+          <UsageLine usage={usage} />
         </div>
       )}
     </div>

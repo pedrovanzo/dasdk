@@ -7,9 +7,18 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useApiKey } from "@/lib/use-api-key";
 import { DEFAULT_MODELS } from "@/lib/providers";
-import { VerdictBanner, CheckResultsList, Narration, SAMPLE_EMAIL, type Verdict, type CheckResult } from "@/components/diver-shared";
+import {
+  VerdictBanner,
+  CheckResultsList,
+  Narration,
+  UsageLine,
+  SAMPLE_EMAIL,
+  type Verdict,
+  type CheckResult,
+  type CallUsage,
+} from "@/components/diver-shared";
 
-type DiverResponse = { verdict: Verdict; checks: CheckResult[]; narration: string | null };
+type DiverResponse = { verdict: Verdict; checks: CheckResult[]; narration: string | null; usage?: CallUsage };
 
 export function DiverQuickCheck() {
   const { credential } = useApiKey();
@@ -112,6 +121,7 @@ export function DiverQuickCheck() {
           <VerdictBanner verdict={result.verdict} />
           <CheckResultsList checks={result.checks} />
           <Narration text={result.narration} />
+          <UsageLine usage={result.usage} />
         </div>
       )}
     </div>

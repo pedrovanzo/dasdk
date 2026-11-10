@@ -2,6 +2,7 @@ import { runDiverChecklist } from "diver";
 import { z } from "zod";
 import { completeText } from "@/lib/model-backend";
 import type { ProviderId } from "@/lib/providers";
+import type { CallUsage } from "@/lib/usage";
 
 const requestSchema = z.object({
   rawEmail: z.string().min(1),
@@ -36,19 +37,22 @@ export async function POST(req: Request) {
   const result = await runDiverChecklist(rawEmail);
 
   let narration: string | null = null;
+  let usage: CallUsage | undefined;
   if (narrate) {
     try {
-      narration = await completeText(
+      const narrationResult = await completeText(
         { type: "provider", ...narrate },
         NARRATION_SYSTEM,
         JSON.stringify(result)
       );
+      narration = narrationResult.text;
+      usage = narrationResult.usage;
     } catch (error) {
       narration = `Narration failed: ${error instanceof Error ? error.message : "unknown error"}`;
     }
   }
 
-  return new Response(JSON.stringify({ ...result, narration }), {
+  return new Response(JSON.stringify({ ...result, narration, usage }), {
     headers: { "content-type": "application/json" },
   });
 }
