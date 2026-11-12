@@ -8,6 +8,4 @@ Full decisions: [`../DECISIONS.md`](../DECISIONS.md).
 
 ## Dev
 
-```bash
-pnpm --filter sdk dev
-```
+Run instructions and install gotchas: root [`README.md`](../README.md) → "Running the project".

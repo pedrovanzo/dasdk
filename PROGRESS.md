@@ -215,15 +215,8 @@ inflating CLI-backend token counts: `agents/diver/DECISIONS.md`.
 9. **A Node-based tool's TLS fetch can fail even when `curl` to the same
    host works fine.** `pnpm add <new-package>` hung, looking identical to
    gotcha #7's pnpm-workspace-linking hang — but `--offline` doesn't help
-   when installing a genuinely new external package. Real cause: `FetchError:
-   self-signed certificate in certificate chain` — this machine's network
-   intercepts TLS (corporate proxy), and `curl` tolerates it silently because
-   it trusts the macOS System Keychain, but Node/pnpm's bundled CA store
-   doesn't consult that keychain. Fix: export the system's trusted roots
-   (`security find-certificate -a -p /Library/Keychains/System.keychain`
-   + `SystemRootCertificates.keychain`) to a PEM file and set
-   `NODE_EXTRA_CA_CERTS` to it for the install. Full writeup: root
-   `DECISIONS.md` → "Homepage showcase — built (2026-11-10)".
+   when installing a genuinely new external package. Real cause and fix:
+   root `README.md` → "Running the project" → "Known install gotchas".
 
 ## What's next (original roadmap, in rough build order)
 
@@ -285,13 +278,8 @@ now the "other open items" below.
    **Environment quirk hit while building this, not a code bug:** plain
    `pnpm install` hangs indefinitely in this sandbox the first time a new
    workspace package needs linking (reproduced independently three times,
-   including outside any subagent) — stalls right after dependency
-   resolution with nothing left to download, so it's some registry
-   freshness check stalling rather than a real missing-dependency problem.
-   `pnpm install --offline` completes in ~1s and links correctly, since
-   everything needed was already in the local store. Use `--offline` first
-   in this environment when adding a new workspace package whose
-   dependencies are already used elsewhere in the repo.
+   including outside any subagent). Fix and detail: root `README.md` →
+   "Running the project" → "Known install gotchas".
 
 Other open items, not yet started:
 - **Harness UI/UX revamp, sharpened (2026-11-10): the real reference point is Google ADK's
@@ -393,13 +381,7 @@ Other open items, not yet started:
 
 ## How to pick this back up
 
-```bash
-cd dasdk
-pnpm install
-pnpm --filter sdk dev
-```
-
-Open `http://localhost:3000`. `/agents/diver` is the only fully working
-agent page. Read root `DECISIONS.md` and `agents/diver/DECISIONS.md` in
+Run instructions and install gotchas: root `README.md` → "Running the
+project". Read root `DECISIONS.md` and `agents/diver/DECISIONS.md` in
 full before making architectural changes — both are kept current and are
 long (this file is the short version).
