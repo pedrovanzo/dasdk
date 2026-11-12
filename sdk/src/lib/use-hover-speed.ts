@@ -1,21 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import {
+  animate,
+  useMotionValue,
+  type DOMKeyframesDefinition,
+  type AnimationOptions,
+  type MotionValue,
+} from "motion/react";
 
-export type AnimSpeed = "slow" | "medium" | "fast";
+// Multiplier applied to an animation's own base duration (effective duration = base * scale).
+// Smaller = faster.
+const SCALE = {
+  fast: 0.4,
+  medium: 0.65,
+  slow: 3.6,
+};
 
-/** Multiplier applied to an animation's "slow" baseline duration. Smaller = faster. */
-export function speedScale(speed: AnimSpeed): number {
-  switch (speed) {
-    case "fast":
-      return 0.35;
-    case "medium":
-      return 0.6;
-    case "slow":
-    default:
-      return 1;
-  }
-}
+const EASE_TRANSITION = { duration: 0.6, ease: "easeInOut" as const };
 
 function useHasHover() {
   const [hasHover, setHasHover] = useState(true);
@@ -32,18 +34,27 @@ function useHasHover() {
 }
 
 /**
- * Drives an animation's speed: slow by default, fast while hovered/focused on
- * devices that support hover, and a constant medium speed on touch devices
- * (where there's no hover to speed up on).
+ * Drives an animation's speed multiplier: fast by default, easing to a much
+ * slower, slow-motion pace while hovered/focused on devices that support
+ * hover. Touch devices (no hover to slow down on) get a constant medium pace
+ * instead. Returns the raw motion value, not a React state number — a
+ * re-render per tick can't actually change an already-playing infinite
+ * animation's rate, only a live `.speed` mutation can (see
+ * `useLoopAnimation` below).
  */
 export function useHoverSpeed() {
   const hasHover = useHasHover();
   const [active, setActive] = useState(false);
+  const scaleValue = useMotionValue(SCALE.fast);
 
-  const speed: AnimSpeed = !hasHover ? "medium" : active ? "fast" : "slow";
+  useEffect(() => {
+    const target = !hasHover ? SCALE.medium : active ? SCALE.slow : SCALE.fast;
+    const controls = animate(scaleValue, target, EASE_TRANSITION);
+    return () => controls.stop();
+  }, [hasHover, active, scaleValue]);
 
   return {
-    speed,
+    scaleValue,
     hoverHandlers: {
       onMouseEnter: () => setActive(true),
       onMouseLeave: () => setActive(false),
@@ -51,4 +62,40 @@ export function useHoverSpeed() {
       onBlur: () => setActive(false),
     },
   };
+}
+
+/**
+ * Starts a looping DOM animation once and keeps it running at a fixed base
+ * pace, then live-adjusts its *playback speed* whenever `scaleValue` changes
+ * (speed = 1 / scale) instead of recreating the animation on every change.
+ * Changing `transition.duration` on an already-playing `repeat: Infinity`
+ * animation has no effect until it restarts — mutating `.speed` on the
+ * running `AnimationPlaybackControls` is what actually makes the
+ * hover-driven speed change (and its ease) visible immediately, without a
+ * remount.
+ */
+export function useLoopAnimation<T extends Element>(
+  keyframes: DOMKeyframesDefinition,
+  baseTransition: AnimationOptions,
+  scaleValue: MotionValue<number>,
+) {
+  const ref = useRef<T>(null);
+
+  useEffect(() => {
+    if (!ref.current) return;
+    const controls = animate(ref.current, keyframes, { ...baseTransition, repeat: Infinity });
+    controls.speed = 1 / scaleValue.get();
+    const unsubscribe = scaleValue.on("change", (v) => {
+      controls.speed = 1 / v;
+    });
+    return () => {
+      unsubscribe();
+      controls.stop();
+    };
+    // keyframes/baseTransition are meant to be static per call site (module-level
+    // constants); only scaleValue identity should ever restart this effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scaleValue]);
+
+  return ref;
 }

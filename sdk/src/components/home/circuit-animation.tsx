@@ -1,10 +1,12 @@
 "use client";
 
-import { motion } from "motion/react";
 import { Bot } from "lucide-react";
-import { speedScale, type AnimSpeed } from "@/lib/use-hover-speed";
+import type { MotionValue } from "motion/react";
+import { useLoopAnimation } from "@/lib/use-hover-speed";
 
-const COLORS = ["#22d3ee", "#a855f7", "#f472b6", "#fb923c"];
+// CSS vars, not literal hex, so a theme switch (see `theme-provider.tsx`) recolors these —
+// `.matrix` in globals.css overrides them to green shades.
+const COLORS = ["var(--graphics-1)", "var(--graphics-2)", "var(--graphics-3)", "var(--graphics-4)"];
 
 // Traces radiate outward from a center chip (roughly x:120-180, y:70-130 in a 300x200 box),
 // each bending several times before reaching an edge. Some corners are cut at 45 degrees
@@ -24,10 +26,40 @@ const TRACES = [
   "M180 122 H210 L230 142 V180 H300",
 ];
 
-/** A looping "current radiating from a chip" animation. Speed-reactive via the `speed` prop. */
-export function CircuitAnimation({ speed }: { speed: AnimSpeed }) {
-  const scale = speedScale(speed);
+// Stable reference across re-renders — motion treats a new object literal as a new
+// animation target, which would jump the pulse back to its start on every call.
+const PULSE_KEYFRAMES = { offsetDistance: ["0%", "100%"] };
 
+function Pulse({
+  d,
+  color,
+  baseDuration,
+  baseDelay,
+  scaleValue,
+}: {
+  d: string;
+  color: string;
+  baseDuration: number;
+  baseDelay: number;
+  scaleValue: MotionValue<number>;
+}) {
+  const ref = useLoopAnimation<SVGCircleElement>(
+    PULSE_KEYFRAMES,
+    { duration: baseDuration, delay: baseDelay, ease: "linear" },
+    scaleValue,
+  );
+
+  return (
+    <circle
+      ref={ref}
+      r={3}
+      style={{ fill: color, offsetPath: `path("${d}")`, filter: `drop-shadow(0 0 3px ${color})` }}
+    />
+  );
+}
+
+/** A looping "current radiating from a chip" animation. Speed-reactive via the `scaleValue` prop (smaller = faster). */
+export function CircuitAnimation({ scaleValue }: { scaleValue: MotionValue<number> }) {
   return (
     <div
       className="relative flex aspect-[3/2] w-full max-w-sm items-center justify-center overflow-hidden rounded-xl ring-1 ring-white/10"
@@ -39,30 +71,24 @@ export function CircuitAnimation({ speed }: { speed: AnimSpeed }) {
             key={d}
             d={d}
             fill="none"
-            stroke={COLORS[i % COLORS.length]}
             strokeOpacity={0.35}
             strokeWidth={1.5}
-            style={{ filter: `drop-shadow(0 0 2px ${COLORS[i % COLORS.length]})` }}
+            style={{
+              stroke: COLORS[i % COLORS.length],
+              filter: `drop-shadow(0 0 2px ${COLORS[i % COLORS.length]})`,
+            }}
           />
         ))}
-        {TRACES.map((d, i) => {
-          const color = COLORS[i % COLORS.length];
-          return (
-            <motion.circle
-              key={`pulse-${d}`}
-              r={3}
-              fill={color}
-              style={{ offsetPath: `path("${d}")`, filter: `drop-shadow(0 0 3px ${color})` }}
-              animate={{ offsetDistance: ["0%", "100%"] }}
-              transition={{
-                duration: (2 + i * 0.25) * scale,
-                repeat: Infinity,
-                ease: "linear",
-                delay: i * 0.3 * scale,
-              }}
-            />
-          );
-        })}
+        {TRACES.map((d, i) => (
+          <Pulse
+            key={`pulse-${d}`}
+            d={d}
+            color={COLORS[i % COLORS.length]}
+            baseDuration={0.9 + i * 0.12}
+            baseDelay={i * 0.15}
+            scaleValue={scaleValue}
+          />
+        ))}
       </svg>
       <div className="absolute left-[40%] top-[35%] flex h-[30%] w-[20%] flex-col items-center justify-center gap-1 rounded-lg border border-white/20 bg-black/80">
         <Bot className="h-4 w-4 text-white" aria-hidden />

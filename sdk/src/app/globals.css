@@ -3,10 +3,15 @@
 @import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
+@custom-variant matrix (&:is(.matrix *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-graphics-1: var(--graphics-1);
+  --color-graphics-2: var(--graphics-2);
+  --color-graphics-3: var(--graphics-3);
+  --color-graphics-4: var(--graphics-4);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
@@ -81,6 +86,15 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* Decorative/animated graphics only (header mesh, card animations) — kept separate from
+     the UI palette above so a theme can recolor chrome and graphics independently. Same
+     hexes in `.dark` on purpose ("same colours we have right now"); `.matrix` overrides
+     these to green shades, nothing else does. */
+  --graphics-1: #22d3ee;
+  --graphics-2: #a855f7;
+  --graphics-3: #f472b6;
+  --graphics-4: #fb923c;
 }
 
 .dark {
@@ -115,6 +129,52 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+
+  --graphics-1: #22d3ee;
+  --graphics-2: #a855f7;
+  --graphics-3: #f472b6;
+  --graphics-4: #fb923c;
+}
+
+/* Dark background, green-tinted UI chrome, green-shade graphics. Hue ~150 throughout
+   (instead of `.dark`'s achromatic greys) is what gives this its "matrix" read. */
+.matrix {
+  --background: oklch(0.12 0.02 150);
+  --foreground: oklch(0.88 0.16 150);
+  --card: oklch(0.17 0.03 150);
+  --card-foreground: oklch(0.88 0.16 150);
+  --popover: oklch(0.17 0.03 150);
+  --popover-foreground: oklch(0.88 0.16 150);
+  --primary: oklch(0.78 0.19 150);
+  --primary-foreground: oklch(0.12 0.02 150);
+  --secondary: oklch(0.24 0.04 150);
+  --secondary-foreground: oklch(0.88 0.16 150);
+  --muted: oklch(0.22 0.03 150);
+  --muted-foreground: oklch(0.62 0.12 150);
+  --accent: oklch(0.24 0.04 150);
+  --accent-foreground: oklch(0.88 0.16 150);
+  --destructive: oklch(0.65 0.22 25);
+  --border: oklch(0.6 0.15 150 / 20%);
+  --input: oklch(0.6 0.15 150 / 25%);
+  --ring: oklch(0.65 0.16 150);
+  --chart-1: oklch(0.85 0.18 150);
+  --chart-2: oklch(0.7 0.17 150);
+  --chart-3: oklch(0.58 0.15 150);
+  --chart-4: oklch(0.44 0.13 150);
+  --chart-5: oklch(0.3 0.1 150);
+  --sidebar: oklch(0.15 0.02 150);
+  --sidebar-foreground: oklch(0.88 0.16 150);
+  --sidebar-primary: oklch(0.78 0.19 150);
+  --sidebar-primary-foreground: oklch(0.12 0.02 150);
+  --sidebar-accent: oklch(0.24 0.04 150);
+  --sidebar-accent-foreground: oklch(0.88 0.16 150);
+  --sidebar-border: oklch(0.6 0.15 150 / 20%);
+  --sidebar-ring: oklch(0.65 0.16 150);
+
+  --graphics-1: #00ff66;
+  --graphics-2: #39ff14;
+  --graphics-3: #00e676;
+  --graphics-4: #66ffb3;
 }
 
 @layer base {

@@ -3,25 +3,26 @@
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import type { ComponentType } from "react";
-import { useHoverSpeed, type AnimSpeed } from "@/lib/use-hover-speed";
+import type { MotionValue } from "motion/react";
+import { useHoverSpeed } from "@/lib/use-hover-speed";
 
 export type ShowcaseSection = {
   href: string;
   title: string;
   description: string;
   icon: LucideIcon;
-  Animation: ComponentType<{ speed: AnimSpeed }>;
+  Animation: ComponentType<{ scaleValue: MotionValue<number> }>;
 };
 
 function ShowcasePanel({ section }: { section: ShowcaseSection }) {
-  const { speed, hoverHandlers } = useHoverSpeed();
+  const { scaleValue, hoverHandlers } = useHoverSpeed();
   const Icon = section.icon;
   const Animation = section.Animation;
 
   return (
     <Link
       href={section.href}
-      className="group relative flex flex-1 flex-col gap-4 px-6 py-10 transition-colors hover:bg-foreground/[0.03]"
+      className="group relative flex flex-1 flex-col gap-4 bg-background/70 px-6 py-10 backdrop-blur-md transition-colors hover:bg-foreground/[0.03]"
       {...hoverHandlers}
     >
       <div className="flex items-center gap-2">
@@ -30,13 +31,13 @@ function ShowcasePanel({ section }: { section: ShowcaseSection }) {
       </div>
       <p className="max-w-xs text-sm text-muted-foreground">{section.description}</p>
       <div className="flex min-h-[160px] flex-1 items-center justify-center">
-        <Animation speed={speed} />
+        <Animation scaleValue={scaleValue} />
       </div>
     </Link>
   );
 }
 
-/** Three panels of equal width, separated by vertical dividers. Each panel speeds up its animation on hover/focus. */
+/** Three panels of equal width, separated by vertical dividers. Each panel eases its animation into a slower pace on hover/focus. */
 export function DiagonalShowcase({ sections }: { sections: ShowcaseSection[] }) {
   return (
     <div className="relative flex flex-col divide-y overflow-hidden rounded-lg border sm:flex-row sm:divide-y-0">

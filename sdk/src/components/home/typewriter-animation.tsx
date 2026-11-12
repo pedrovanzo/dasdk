@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion } from "motion/react";
-import { speedScale, type AnimSpeed } from "@/lib/use-hover-speed";
+import { motion, useMotionValueEvent, type MotionValue } from "motion/react";
 
 const LINES = [
   "An agent calls tools in a loop.",
@@ -10,18 +9,20 @@ const LINES = [
   "A skill is loaded on demand.",
 ];
 
-/** A looping typewriter effect over a small set of lines. Speed-reactive via the `speed` prop. */
-export function TypewriterAnimation({ speed }: { speed: AnimSpeed }) {
-  const scale = speedScale(speed);
+/** A looping typewriter effect over a small set of lines. Speed-reactive via the `scaleValue` prop (smaller = faster). */
+export function TypewriterAnimation({ scaleValue }: { scaleValue: MotionValue<number> }) {
+  const [scale, setScale] = useState(() => scaleValue.get());
+  useMotionValueEvent(scaleValue, "change", setScale);
+
   const [lineIndex, setLineIndex] = useState(0);
   const [charCount, setCharCount] = useState(0);
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const line = LINES[lineIndex];
-    const typeMs = 55 * scale;
-    const deleteMs = 30 * scale;
-    const holdMs = 1100 * scale;
+    const typeMs = 38 * scale;
+    const deleteMs = 20 * scale;
+    const holdMs = 650 * scale;
 
     if (!deleting && charCount < line.length) {
       const t = setTimeout(() => setCharCount((c) => c + 1), typeMs);

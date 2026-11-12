@@ -5,6 +5,7 @@ import { DiagonalShowcase, type ShowcaseSection } from "@/components/home/diagon
 import { CircuitAnimation } from "@/components/home/circuit-animation";
 import { GraphFillAnimation } from "@/components/home/graph-fill-animation";
 import { TypewriterAnimation } from "@/components/home/typewriter-animation";
+import { DottedWaveBackgroundGL } from "@/components/home/dotted-wave-background-gl";
 
 const SECTIONS: ShowcaseSection[] = [
   {
@@ -34,19 +35,22 @@ const SECTIONS: ShowcaseSection[] = [
 
 export default function Home() {
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-16 px-6 py-16">
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center gap-3">
-          <Bot className="h-9 w-9" aria-hidden />
-          <h1 className="text-4xl font-semibold tracking-tight">dasdk</h1>
+    <>
+      <DottedWaveBackgroundGL />
+      <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-16 px-6 py-16">
+        <div className="flex flex-col gap-4 rounded-xl border bg-background/70 px-6 py-8 backdrop-blur-md">
+          <div className="flex items-center gap-3">
+            <Bot className="h-9 w-9" aria-hidden />
+            <h1 className="text-4xl font-semibold tracking-tight">dasdk</h1>
+          </div>
+          <p className="max-w-2xl text-lg text-muted-foreground">
+            An agent SDK harness, scaffold, and a handful of real and demo agents — run entirely
+            in your browser with your own model key. No server-held secrets, ever.
+          </p>
         </div>
-        <p className="max-w-2xl text-lg text-muted-foreground">
-          An agent SDK harness, scaffold, and a handful of real and demo agents — run entirely
-          in your browser with your own model key. No server-held secrets, ever.
-        </p>
-      </div>
 
-      <DiagonalShowcase sections={SECTIONS} />
-    </div>
+        <DiagonalShowcase sections={SECTIONS} />
+      </div>
+    </>
   );
 }

@@ -310,6 +310,70 @@ Other open items, not yet started:
   a filling line graph, a typewriter effect), modeled directly on user-supplied reference images.
   Scoped to `/` only — the rest of the app (agent pages, evals, docs) still awaits the full revamp.
   Full writeup: root `DECISIONS.md` → "Homepage showcase — built (2026-11-10)".
+  **Further iterated 2026-11-11/12:** the homepage header background (`DottedWaveBackground`,
+  `sdk/src/components/home/dotted-wave-background.tsx`) went through many refinement passes —
+  reshaped curve proportions (small-left/large-right humps), a static CSS 3D `perspective`/`rotateY`
+  tilt (right edge closer to viewer), cursor-repulsion, a vertical fade, tighter/denser uniform
+  parallel lines (~6000 `<circle>` DOM nodes total), and a fixed glassmorphism treatment applied to
+  both the sticky navbar and the three `DiagonalShowcase` cards. A click-triggered "pulse" effect
+  was tried and **dropped** — touching a large-enough subset of ~6000 real DOM nodes per frame to
+  look good made it noticeably laggy, and this environment has no way to profile an actual browser
+  to iterate on it blind.
+  **Second, parallel WebGL implementation built 2026-11-12**
+  (`sdk/src/components/home/dotted-wave-background-gl.tsx`), alongside the original SVG/DOM
+  version — not replacing it. Shared geometry/color/tuning constants were pulled out of the
+  original component into `sdk/src/components/home/dot-field.ts` so both read from one source of
+  truth. The GL version uploads the ~6000 dots' positions/colors to static GPU buffers once, then
+  draws them all in a single `gl.POINTS` draw call; cursor-repulsion physics (easing toward a
+  mouse-driven target) still runs on the CPU every frame, over the same `Float32Array`s and the
+  same ease constants as the DOM version — only the per-frame *render sink* changed, from ~6000
+  individual `circle.style.transform` writes to one `bufferSubData` call. Cursor mapping reuses
+  the same `getScreenCTM()` trick via a zero-child, `visibility: hidden` ghost `<svg>` rendered
+  alongside the canvas, so the 3D-tilt coordinate math didn't need re-deriving. A small toggle
+  button was added to the homepage (`sdk/src/app/page.tsx`, "Header: SVG/WebGL") to switch between
+  the two at runtime for comparison; it defaults to the original SVG version, so production
+  behavior is unchanged unless someone clicks it. Verified via `tsc`, `eslint`, `next build`, and a
+  live SSR fetch (6068 `<circle>`s render under the default SVG state, no canvas in that markup,
+  no new dev-server log errors) — **not** verified interactively in an actual browser (no browser
+  automation available in this environment), so the WebGL path's visual output, point-size
+  fidelity, and real frame-rate win are unconfirmed and worth the user actually opening the toggle
+  to check. Known simplification: `gl_PointSize` is isotropic (a true circle) where the SVG
+  version's non-uniform viewBox stretch makes dots slightly elliptical — judged not worth a
+  per-axis correction at `r=1px`. Repulsion physics itself was deliberately *not* moved into the
+  vertex shader (kept on the CPU, matching the DOM version) so the comparison isolates the one
+  variable that actually mattered for the dropped pulse: DOM writes vs. one GPU buffer upload.
+  **Pulse re-added to the GL version only, same day**, specifically to eval performance now that
+  there's a GPU-buffer render sink: a click originates an outward ring (speed/duration/band-width
+  tunable consts at the top of the file) that boosts point size, blends color toward white, and
+  boosts alpha at the wavefront, self-cancelling after ~1.6s. Unlike the dropped DOM version, this
+  is computed **entirely in the vertex/fragment shader** off three uniforms
+  (`uPulseActive`/`uPulseOrigin`/`uPulseElapsed`) updated once per frame — zero added CPU cost per
+  dot. User-reported result: "looks flawless" — confirms the DOM version's lagginess was the
+  per-frame DOM writes, not the pulse math itself.
+  **WebGL promoted to the only header, same day:** the toggle button is gone, the DOM/SVG version
+  (`dotted-wave-background.tsx`) is no longer mounted anywhere — kept in the source, commented
+  **deprecated**, for reference only. `/docs` got a new short "Homepage header" section stating
+  this. A glassmorphism panel (`rounded-xl border bg-background/70 backdrop-blur-md`, same recipe
+  as the navbar/cards) now wraps the hero title+subtitle, since it was hard to read directly over
+  the moving lines.
+  **Theming added, same day:** `next-themes` (new dependency), three themes — `light` (unchanged
+  values), `dark` (already-existing `.dark` class in `globals.css`, now actually wired up —
+  flips background/foreground contrast, was dead CSS before), and a new `matrix` theme (dark,
+  green-hued UI chrome via oklch hue ~150). A navbar `ThemeToggle` (`sdk/src/components/
+  theme-toggle.tsx`) cycles the three. Decorative "graphics" (header dots, circuit-animation
+  traces/pulses, graph-fill-animation's wave/line/points) were switched from baked hex to four
+  CSS custom properties (`--graphics-1..4`, `sdk/src/app/globals.css`) — identical hexes in
+  `:root`/`.dark`, green shades in `.matrix` — so **only** decorative graphics recolor in matrix
+  mode, not arbitrary UI elements. Plain CSS/SVG consumers (the two card animations) just
+  reference `var(--graphics-N)` in `style`, no JS needed. The WebGL header is the one exception:
+  its dot colors are baked into a GPU buffer at upload time, not re-read by the browser on
+  repaint, so `dotted-wave-background-gl.tsx` resolves each CSS var via `getComputedStyle` once
+  per unique color and re-uploads the color buffer whenever a `MutationObserver` sees the `<html>`
+  class change (`next-themes`' mechanism for switching themes). Verified via `tsc`/`eslint`/
+  `next build`/live SSR fetch (canvas present, zero `<circle>` dots, toggle/docs text present) —
+  **not** interactively verified in a real browser (no browser automation here), so actually
+  cycling all three themes and confirming the matrix graphics genuinely turn green is still on
+  the user to check.
 - **Brand allowlist's native-search fallback** — the `BrandLookup` hook
   exists in `agents/diver/src/checks/brand-allowlist.ts` but nothing
   implements it yet (would need to wire an actual Gemini/Claude/OpenAI

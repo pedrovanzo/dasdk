@@ -20,6 +20,10 @@ const sections = [
     body: "The reference material behind this project came from a Google/Alura immersion course built on Antigravity CLI, Google ADK, Vertex AI / AI Studio, and Cloud Shell/Cloud Run. This project instead uses a mixed stack: Next.js, Vercel, the Vercel AI SDK, and plain git/GitHub — chosen for browser-first, serverless-friendly hosting.",
   },
   {
+    title: "Homepage header",
+    body: "The dotted mesh behind the homepage header is rendered with WebGL — one GPU buffer, one draw call. An earlier SVG/DOM version of the same effect (one real DOM node per dot) is deprecated and kept in the source only for reference/comparison; it's no longer shown on the page.",
+  },
+  {
     title: "Credits",
     body: "Built after an Alura \"Imersão Dev\" course on Google ADK + Antigravity CLI, and inspired by Matt Pocock / AI Hero's AGENTS.md guidance and web-search-agent pattern.",
   },

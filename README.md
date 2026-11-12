@@ -14,6 +14,24 @@ Key design constraint: self-provided API key. User pastes their own key at runti
 
 Decisions captured via /grilling sessions — see individual package READMEs for current status.
 
+## Running the project
+
+```bash
+pnpm install              # once, from repo root
+pnpm --filter sdk dev     # starts the Next.js app at localhost:3000
+```
+
+Open `http://localhost:3000` — `/agents/diver` is the only fully working agent page.
+
+**Known install gotchas on this machine** (corporate TLS-intercepting proxy):
+- A first-time `pnpm install` can hang indefinitely right after dependency resolution when a new workspace package needs linking. Fix: `pnpm install --offline` (works when everything needed is already in the local store).
+- Adding a genuinely new external package (e.g. `pnpm add <pkg>`) can instead fail with `FetchError: self-signed certificate in certificate chain` — `--offline` doesn't help here since it's a real new fetch. Fix: export the system's trusted roots to a PEM file and point `NODE_EXTRA_CA_CERTS` at it:
+  ```bash
+  security find-certificate -a -p /Library/Keychains/System.keychain > /tmp/certs.pem
+  security find-certificate -a -p /Library/Keychains/SystemRootCertificates.keychain >> /tmp/certs.pem
+  NODE_EXTRA_CA_CERTS=/tmp/certs.pem pnpm add <pkg>
+  ```
+
 ## Reference material (not in this repo)
 
 Alura course repo on Google ADK + Antigravity CLI ("Imersão Dev" immersion) lives at `../alura-google` (i.e. `misc-work/alura-google`, sibling of this folder) — kept out of `dasdk` on purpose so it never enters this public repo. Conceptual reference only, not reused as code. Contains a live API key in its `.env` (gitignored there) — never copy into this repo. Future agents: this is the full path, don't lose track of it.
