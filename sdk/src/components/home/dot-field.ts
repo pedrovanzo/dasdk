@@ -131,6 +131,22 @@ export const DOTS: Dot[] = buildParallelLines(SHARED_SPINE, {
 export const DOT_RADIUS = 1;
 export const DOT_OPACITY = 0.9;
 
+/**
+ * Same spine/spacing/overscan as `DOTS` above, but for an arbitrary height (viewBox
+ * units) instead of the fixed `HEIGHT`. Used by the WebGL header to cover a full-device-
+ * height container: more parallel lines are appended as the available height grows,
+ * rather than stretching the existing `HEIGHT`-tall pattern to fit.
+ */
+export function buildHeaderDots(heightUnits: number): Dot[] {
+  return buildParallelLines(SHARED_SPINE, {
+    spacing: 22,
+    rangeStart: -40,
+    rangeEnd: heightUnits + 80,
+    dotRadius: DOT_RADIUS,
+    opacity: DOT_OPACITY,
+  });
+}
+
 // How much bigger the inner tilted box is than its outer (untransformed) wrapper.
 export const INNER_SCALE = 1.4;
 

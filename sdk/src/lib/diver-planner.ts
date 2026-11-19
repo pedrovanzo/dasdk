@@ -2,7 +2,7 @@ import { generateObject } from "ai";
 import { z } from "zod";
 import { CHECK_IDS, CHECK_CATALOG, EMPTY_EXTRACTED_FIELDS, type ExtractedFields, type CheckId } from "diver";
 import { resolveModel } from "@/lib/resolve-model";
-import { callClaudeCli, extractJsonFromText } from "@/lib/claude-cli";
+import { callClaudeCli, callClaudeCliWithImage, extractJsonFromText } from "@/lib/claude-cli";
 import type { Backend } from "@/lib/model-backend";
 import { fromCliResult, type CallUsage } from "@/lib/usage";
 
@@ -87,15 +87,15 @@ function normalize(raw: z.infer<typeof plannerSchema>, usage?: CallUsage): Plann
 
 export async function runPlanner(input: DiverInput, backend: Backend): Promise<PlannerOutput> {
   if (backend.type === "claude-cli") {
-    if (input.kind === "image") {
-      throw new Error("The Claude Code CLI backend doesn't support image input yet — connect a provider key instead.");
-    }
-    const cliResult = await callClaudeCli(
-      buildPlannerPrompt(input),
-      `${PLANNER_SYSTEM}\n\n${CLI_JSON_SHAPE}`,
-      backend.account,
-      "" // Planner only extracts structured fields from the given input — no tool access needed or wanted.
-    );
+    const plannerSystem = `${PLANNER_SYSTEM}\n\n${CLI_JSON_SHAPE}`;
+    // Image input goes through a temp file + Claude's own Read tool (see
+    // `callClaudeCliWithImage`'s doc comment) — `-p` mode has no other way to attach binary
+    // content. Text input needs no tool access at all, so it stays on the plain call with
+    // every tool denied.
+    const cliResult =
+      input.kind === "image"
+        ? await callClaudeCliWithImage(buildPlannerPrompt(input), plannerSystem, backend.account, input.dataUrl)
+        : await callClaudeCli(buildPlannerPrompt(input), plannerSystem, backend.account, "");
     const jsonText = extractJsonFromText(cliResult.text);
     if (jsonText === null) {
       throw new Error(

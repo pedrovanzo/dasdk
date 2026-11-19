@@ -370,6 +370,20 @@ Other open items, not yet started:
 - **Image input end-to-end test** — the vision path for Agent session
   (provider backend) has never actually been exercised with a real image
   and a real key; only the plumbing was built and typechecked.
+- **Image Reader web UI + Claude CLI image support (built 2026-11-19, untested against a real
+  backend)** — `image-reader` now has a live in-browser inspector (file picker, thumbnail, optional
+  prompt, backend picker, result) instead of just a README link; `localOnly` removed. It's a second,
+  independent TypeScript implementation (`sdk/src/lib/image-reader.ts`), not a bridge to the Python
+  package — Vercel can't run Python in a serverless function. Separately, the Claude Code CLI backend
+  gained real image support for the first time (`callClaudeCliWithImage` in `claude-cli.ts`: temp file
+  + Claude's own `Read` tool, scoped to that one path, deleted after) — used by both this and Diver's
+  planner, which previously hard-rejected image input on this backend. Full writeup, including why this
+  doesn't change whether either agent still counts as "an agent": root `DECISIONS.md` → "Image Reader
+  gets a live browser UI, and Claude CLI backend gains real image support."
+- **WebGL header height (built 2026-11-19, not visually confirmed)** — the homepage's WebGL dot mesh
+  now spans `h-dvh` (full device height) instead of a fixed 420px, by generating more parallel lines
+  to fill the extra height rather than stretching the existing pattern. Full writeup: root
+  `DECISIONS.md` → "WebGL header spans full device height, not just the hero area."
 - **Deployment** — nothing has been deployed to Vercel yet. All testing so
   far is against `pnpm --filter sdk dev` locally.
 - Possible polish noticed during testing but not acted on: the homoglyph

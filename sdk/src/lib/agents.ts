@@ -31,7 +31,6 @@ export const agents: AgentDefinition[] = [
     tagline: "Describes and extracts text from an image",
     description:
       "Toy agent in the Python / ADK-style flavor. Takes an uploaded image and uses a vision-capable model to describe it and extract any text.",
-    localOnly: true,
   },
 ];
 

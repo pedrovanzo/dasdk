@@ -5,6 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { DiverInspector } from "@/components/diver-inspector";
 import { WebSearchAgentInspector } from "@/components/web-search-agent-inspector";
+import { ImageReaderInspector } from "@/components/image-reader-inspector";
 import { agents, getAgent } from "@/lib/agents";
 
 // One entry per agent with a live, browser-based inspector. Agents not listed
@@ -13,6 +14,7 @@ import { agents, getAgent } from "@/lib/agents";
 const INSPECTORS: Record<string, () => React.ReactNode> = {
   diver: () => <DiverInspector />,
   "web-search-agent": () => <WebSearchAgentInspector />,
+  "image-reader": () => <ImageReaderInspector />,
 };
 
 export function generateStaticParams() {
