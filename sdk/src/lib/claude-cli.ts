@@ -1,4 +1,6 @@
 import { execFile, spawn } from "node:child_process";
+import { writeFile, mkdir, rm } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { promisify } from "node:util";
 import os from "node:os";
 import path from "node:path";
@@ -151,13 +153,21 @@ export async function callClaudeCli(
   // actually needs, rather than silently inheriting whatever a given machine's own Claude Code
   // settings happen to auto-allow. "" denies all tools (confirmed empirically — Claude Code does
   // not fall back to interactive-approval-equivalent defaults in one-shot `-p` mode).
-  allowedTools: string
+  allowedTools: string,
+  // Grants file-tool (Read/Edit/etc.) access to a directory outside the default sandbox,
+  // which is the project's own working directory tree — this is a *separate* permission
+  // layer from `allowedTools`. Confirmed empirically: `--allowedTools Read` alone still
+  // denies reading a file outside that tree (e.g. a temp file), the model gets a permission
+  // error it has no way to self-resolve in non-interactive `-p` mode, and only `--add-dir`
+  // actually grants the directory. See `callClaudeCliWithImage` for the real use case.
+  addDir?: string
 ): Promise<ClaudeCliResult> {
   // --output-format json (instead of the default "text") wraps the answer in
   // a JSON envelope that also carries token usage and USD cost — otherwise
   // there's no way to report either back to the UI.
   const args = ["-p", prompt, "--output-format", "json", "--allowedTools", allowedTools];
   if (system) args.push("--system-prompt", system);
+  if (addDir) args.push("--add-dir", addDir);
 
   // execFile always opens a stdin pipe to the child but never closes it, so
   // `claude` sits waiting for input that will never arrive (it logs a "no
@@ -284,6 +294,66 @@ export async function callClaudeCliStreaming(
       );
     });
   });
+}
+
+// Extensions Claude Code's own `Read` tool is expected to recognize as an image, matching
+// the Python image-reader package's SUPPORTED_MIME_TYPES.
+const IMAGE_MIME_EXTENSIONS: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+  "image/heic": "heic",
+  "image/heif": "heif",
+};
+
+function parseDataUrl(dataUrl: string): { mimeType: string; buffer: Buffer } {
+  const match = dataUrl.match(/^data:([^;]+);base64,([\s\S]+)$/);
+  if (!match) throw new Error("Expected a base64 image data URL (data:<mime-type>;base64,<data>).");
+  return { mimeType: match[1], buffer: Buffer.from(match[2], "base64") };
+}
+
+/**
+ * Lets a one-shot `claude -p` call "see" an image. `-p` mode has no flag or message
+ * envelope for attaching binary content directly — `callClaudeCli` above only ever sends a
+ * plain text prompt — but Claude Code's own `Read` tool already knows how to open an image
+ * file and feed it to the model multimodally (the same mechanism that turns a pasted image
+ * into `[Image #1]` in an interactive session).
+ *
+ * Two separate permission layers have to be granted for this, not one: `Read` must be in
+ * `allowedTools` (the tool itself), *and* the directory holding the file must be passed via
+ * `--add-dir` (file tools are sandboxed to the project's own working directory tree by
+ * default — an unscoped `Read(<path>)` specifier in `allowedTools` does **not** grant this;
+ * confirmed the hard way, a first attempt at exactly that left the model unable to open the
+ * file and no way to self-resolve it in non-interactive mode). So this writes the image into
+ * a freshly created, uniquely-named temp *directory* (not loose in the shared system temp
+ * dir — keeps the `--add-dir` grant scoped to just this one call's file, not all of
+ * `os.tmpdir()`), grants that one directory, instructs the model to read the file, then
+ * removes the whole directory afterward regardless of outcome.
+ */
+export async function callClaudeCliWithImage(
+  prompt: string,
+  system: string | undefined,
+  account: ClaudeAccountId | undefined,
+  dataUrl: string
+): Promise<ClaudeCliResult> {
+  const { mimeType, buffer } = parseDataUrl(dataUrl);
+  const extension = IMAGE_MIME_EXTENSIONS[mimeType];
+  if (!extension) {
+    const supported = Object.keys(IMAGE_MIME_EXTENSIONS).join(", ");
+    throw new Error(`Unsupported image type for the Claude CLI backend: ${mimeType}. Supported: ${supported}`);
+  }
+
+  const tempDir = path.join(os.tmpdir(), `dasdk-image-reader-${randomUUID()}`);
+  const tempPath = path.join(tempDir, `image.${extension}`);
+  await mkdir(tempDir, { recursive: true });
+  await writeFile(tempPath, buffer);
+
+  try {
+    const effectivePrompt = `Use the Read tool to open the image file at ${tempPath}, then respond to the following:\n\n${prompt}`;
+    return await callClaudeCli(effectivePrompt, system, account, "Read", tempDir);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true }).catch(() => {});
+  }
 }
 
 /**

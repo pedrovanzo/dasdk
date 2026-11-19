@@ -4,7 +4,6 @@ import { useEffect, useRef } from "react";
 import {
   WIDTH,
   HEIGHT,
-  DOTS,
   DOT_RADIUS,
   DOT_OPACITY,
   INNER_SCALE,
@@ -14,6 +13,8 @@ import {
   SETTLE_EPSILON,
   hexToRgb01,
   resolveGraphicsColorHex,
+  buildHeaderDots,
+  type Dot,
 } from "./dot-field";
 
 // Each `dot.color` is a `"var(--graphics-N)"` string (see dot-field.ts), not a literal hex —
@@ -149,38 +150,46 @@ export function DottedWaveBackgroundGL() {
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
-    const n = DOTS.length;
-    const positions = new Float32Array(n * 2);
-    const colors = new Float32Array(n * 3);
-    const offsets = new Float32Array(n * 2);
-    const dx = new Float32Array(n);
-    const dy = new Float32Array(n);
-
-    for (let i = 0; i < n; i++) {
-      positions[i * 2] = DOTS[i].x;
-      positions[i * 2 + 1] = DOTS[i].y;
-    }
-
     const positionBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
     const aPosition = gl.getAttribLocation(program, "aPosition");
     gl.enableVertexAttribArray(aPosition);
-    gl.vertexAttribPointer(aPosition, 2, gl.FLOAT, false, 0, 0);
 
     const colorBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
     const aColor = gl.getAttribLocation(program, "aColor");
     gl.enableVertexAttribArray(aColor);
-    gl.vertexAttribPointer(aColor, 3, gl.FLOAT, false, 0, 0);
+
+    const offsetBuffer = gl.createBuffer();
+    const aOffset = gl.getAttribLocation(program, "aOffset");
+    gl.enableVertexAttribArray(aOffset);
+
+    const uResolution = gl.getUniformLocation(program, "uResolution");
+    const uPixelSize = gl.getUniformLocation(program, "uPixelSize");
+    const uOpacity = gl.getUniformLocation(program, "uOpacity");
+    const uPulseActive = gl.getUniformLocation(program, "uPulseActive");
+    const uPulseOrigin = gl.getUniformLocation(program, "uPulseOrigin");
+    const uPulseElapsed = gl.getUniformLocation(program, "uPulseElapsed");
+    gl.uniform1f(uOpacity, DOT_OPACITY);
+    gl.uniform1f(uPulseActive, 0);
+
+    // Mutable geometry, rebuilt (not stretched) whenever the available height changes —
+    // see `resize()` below. `heightUnits` starts at 0 so the very first `resize()` call
+    // always triggers a build.
+    let dots: Dot[] = [];
+    let n = 0;
+    let heightUnits = 0;
+    let dx = new Float32Array(0);
+    let dy = new Float32Array(0);
+    let offsets = new Float32Array(0);
 
     // Resolved once per unique `dot.color` string (4 of them), then looked up per dot —
-    // re-run whenever the theme class on <html> changes (see the MutationObserver below),
-    // since the actual RGB values live in CSS custom properties, not in `DOTS` itself.
+    // re-run whenever the theme class on <html> changes (see the MutationObserver below)
+    // or the geometry is rebuilt, since the actual RGB values live in CSS custom
+    // properties, not in `dots` itself.
     function uploadColors() {
+      const colors = new Float32Array(n * 3);
       const lookup = new Map<string, [number, number, number]>();
       for (let i = 0; i < n; i++) {
-        const key = DOTS[i].color;
+        const key = dots[i].color;
         let rgb = lookup.get(key);
         if (!rgb) {
           const varName = extractVarName(key);
@@ -194,31 +203,56 @@ export function DottedWaveBackgroundGL() {
       }
       gl!.bindBuffer(gl!.ARRAY_BUFFER, colorBuffer);
       gl!.bufferData(gl!.ARRAY_BUFFER, colors, gl!.STATIC_DRAW);
+      gl!.vertexAttribPointer(aColor, 3, gl!.FLOAT, false, 0, 0);
     }
-    uploadColors();
 
-    const offsetBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, offsetBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, offsets, gl.DYNAMIC_DRAW);
-    const aOffset = gl.getAttribLocation(program, "aOffset");
-    gl.enableVertexAttribArray(aOffset);
-    gl.vertexAttribPointer(aOffset, 2, gl.FLOAT, false, 0, 0);
+    // Appends/removes whole parallel lines to cover `newHeightUnits` — the per-line
+    // spacing and shape never change, so this never reads as a stretch, only as "more of
+    // the same pattern" extending further down.
+    function rebuildGeometry(newHeightUnits: number) {
+      heightUnits = newHeightUnits;
+      dots = buildHeaderDots(heightUnits);
+      n = dots.length;
 
-    const uResolution = gl.getUniformLocation(program, "uResolution");
-    const uPixelSize = gl.getUniformLocation(program, "uPixelSize");
-    const uOpacity = gl.getUniformLocation(program, "uOpacity");
-    const uPulseActive = gl.getUniformLocation(program, "uPulseActive");
-    const uPulseOrigin = gl.getUniformLocation(program, "uPulseOrigin");
-    const uPulseElapsed = gl.getUniformLocation(program, "uPulseElapsed");
-    gl.uniform2f(uResolution, WIDTH, HEIGHT);
-    gl.uniform1f(uOpacity, DOT_OPACITY);
-    gl.uniform1f(uPulseActive, 0);
+      const positions = new Float32Array(n * 2);
+      for (let i = 0; i < n; i++) {
+        positions[i * 2] = dots[i].x;
+        positions[i * 2 + 1] = dots[i].y;
+      }
+      gl!.bindBuffer(gl!.ARRAY_BUFFER, positionBuffer);
+      gl!.bufferData(gl!.ARRAY_BUFFER, positions, gl!.STATIC_DRAW);
+      gl!.vertexAttribPointer(aPosition, 2, gl!.FLOAT, false, 0, 0);
 
-    function resize() {
+      uploadColors();
+
+      dx = new Float32Array(n);
+      dy = new Float32Array(n);
+      offsets = new Float32Array(n * 2);
+      gl!.bindBuffer(gl!.ARRAY_BUFFER, offsetBuffer);
+      gl!.bufferData(gl!.ARRAY_BUFFER, offsets, gl!.DYNAMIC_DRAW);
+      gl!.vertexAttribPointer(aOffset, 2, gl!.FLOAT, false, 0, 0);
+
+      gl!.uniform2f(uResolution, WIDTH, heightUnits);
+      // Keeps the cursor-mapping ghost SVG (see `toLocalPoint` below) in sync so
+      // repulsion still lines up correctly over the taller area.
+      svg!.setAttribute("viewBox", `0 0 ${WIDTH} ${heightUnits}`);
+    }
+
+    // Returns false if the container isn't laid out yet (0×0 rect — happens for a moment
+    // during a route transition, right as this component mounts). Previously this case fell
+    // through to `Math.max(1, ...)` below, which clamped the canvas's actual pixel buffer to
+    // ~1×1 while its CSS box still filled the whole screen — the browser then stretches that
+    // one pixel (whichever of the cycling dot colors happened to land on it) across the
+    // entire element, reading as a solid full-screen color flash. Skipping the resize/draw
+    // entirely here and letting the next `ResizeObserver` callback (fired once real layout
+    // happens) do the real first draw avoids ever producing that degenerate frame.
+    function resize(): boolean {
       const rect = canvas!.getBoundingClientRect();
+      if (rect.width < 1 || rect.height < 1) return false;
+
       const dpr = window.devicePixelRatio || 1;
-      const displayWidth = Math.max(1, Math.round(rect.width * dpr));
-      const displayHeight = Math.max(1, Math.round(rect.height * dpr));
+      const displayWidth = Math.round(rect.width * dpr);
+      const displayHeight = Math.round(rect.height * dpr);
       if (canvas!.width !== displayWidth || canvas!.height !== displayHeight) {
         canvas!.width = displayWidth;
         canvas!.height = displayHeight;
@@ -229,6 +263,15 @@ export function DottedWaveBackgroundGL() {
       // r=1px that it's not worth a per-axis correction here.
       const pixelsPerUnit = displayWidth / WIDTH;
       gl!.uniform1f(uPixelSize, DOT_RADIUS * 2 * pixelsPerUnit);
+
+      // Height-in-units is derived from the *same* width-based pixel scale, not from the
+      // container's own aspect ratio — so a taller viewport never stretches the existing
+      // pattern, it only grows how many parallel lines `rebuildGeometry` generates.
+      const newHeightUnits = displayHeight / pixelsPerUnit;
+      if (Math.abs(newHeightUnits - heightUnits) > 1) {
+        rebuildGeometry(newHeightUnits);
+      }
+      return true;
     }
 
     function draw() {
@@ -236,12 +279,23 @@ export function DottedWaveBackgroundGL() {
       gl!.drawArrays(gl!.POINTS, 0, n);
     }
 
-    resize();
-    draw();
+    // Kept hidden (see the `opacity-0` class in the JSX below) until the first real,
+    // correctly-sized frame has actually been drawn — belt-and-suspenders on top of the
+    // `resize()` guard above, in case some other transitional render ever slips through.
+    let revealed = false;
+    function drawFrame() {
+      const laidOut = resize();
+      draw();
+      if (laidOut && !revealed) {
+        revealed = true;
+        canvas!.style.opacity = "1";
+      }
+    }
+
+    drawFrame();
 
     const resizeObserver = new ResizeObserver(() => {
-      resize();
-      draw();
+      drawFrame();
     });
     resizeObserver.observe(canvas);
 
@@ -297,7 +351,7 @@ export function DottedWaveBackgroundGL() {
       let maxResidual = 0;
 
       for (let i = 0; i < n; i++) {
-        const dot = DOTS[i];
+        const dot = dots[i];
         let targetDx = 0;
         let targetDy = 0;
 
@@ -397,7 +451,7 @@ export function DottedWaveBackgroundGL() {
     <div
       ref={containerRef}
       aria-hidden
-      className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[420px] overflow-hidden"
+      className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-dvh overflow-hidden"
       style={{
         maskImage: "linear-gradient(to right, transparent 0%, black 20%, black 80%, transparent 100%)",
         WebkitMaskImage: "linear-gradient(to right, transparent 0%, black 20%, black 80%, transparent 100%)",
@@ -418,7 +472,10 @@ export function DottedWaveBackgroundGL() {
             transform: "translate(-50%, -50%) perspective(1000px) rotateY(-16deg)",
           }}
         >
-          <canvas ref={canvasRef} className="absolute inset-0 block h-full w-full" />
+          <canvas
+            ref={canvasRef}
+            className="absolute inset-0 block h-full w-full opacity-0 transition-opacity duration-300"
+          />
           <svg
             ref={svgRef}
             viewBox={`0 0 ${WIDTH} ${HEIGHT}`}

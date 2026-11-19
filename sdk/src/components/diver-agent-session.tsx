@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useModelBackend } from "@/lib/use-model-backend";
 import { ModelBackendPicker } from "@/components/model-backend-picker";
+import { fileToDataUrl } from "@/lib/file-to-data-url";
 import {
   VerdictBanner,
   CheckResultsList,
@@ -20,15 +21,6 @@ import {
 
 type Plan = { extracted: Record<string, unknown>; checksToRun: string[]; reasoning: string };
 type SessionResult = { plan: Plan; verdict: Verdict; checks: CheckResult[] };
-
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
 
 export function DiverAgentSession() {
   const model = useModelBackend();
@@ -163,6 +155,15 @@ export function DiverAgentSession() {
           )}
 
           <ModelBackendPicker model={model} />
+
+          {inputKind === "image" && model.effectiveBackend === "claude-cli" && (
+            <p className="text-xs text-muted-foreground">
+              Using your local Claude Code session — since one-shot CLI calls can&apos;t carry image
+              bytes directly, your image is written to a temp file and read via Claude&apos;s own Read
+              tool (scoped to that one file only), then deleted. Expect a bit more latency than a
+              direct provider-key call.
+            </p>
+          )}
 
           <div className="flex flex-wrap items-center gap-2">
             <Button nativeButton onClick={handleRun} disabled={loading || !hasInput || !model.backendReady}>
